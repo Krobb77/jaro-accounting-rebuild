@@ -1,0 +1,73 @@
+---
+title: Client portal — Jaro Accounting
+description: Your [[portal_name]] client portal dashboard.
+path: /portal/
+nav: none
+sitemap: false
+scripts: portal.js
+---
+<main id="main" tabindex="-1" class="site-main portal-page">
+  <div class="container">
+    <!-- Session warning banner (≤120s). -->
+    <div id="session-banner" class="session-banner" role="alert" hidden>
+      <p>Your session expires in <strong data-countdown>2:00</strong> due to inactivity.</p>
+      <button type="button" id="session-extend" class="btn btn--small">Stay signed in</button>
+    </div>
+
+    <nav class="portal-nav" aria-label="Portal">
+      <a href="/portal/" aria-current="page">Dashboard</a>
+      <a href="/portal/documents/">Documents</a>
+      <a href="/portal/filings/">Filings</a>
+      <a href="/portal/invoices/">Invoices</a>
+      <button type="button" id="portal-logout" class="link-button">Sign out</button>
+    </nav>
+
+    <div id="portal-error" class="error-summary" role="alert" hidden></div>
+    <div id="portal-root" role="status"><p>Loading your dashboard&hellip;</p></div>
+  </div>
+
+  <!-- Terms modal: no dismiss — Accept or Sign out. -->
+  <div id="terms-modal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="terms-title" hidden>
+    <div class="modal__box">
+      <h2 id="terms-title">Engagement terms</h2>
+      <div id="terms-body" class="terms-body"></div>
+      <div id="terms-error" class="error-summary" role="alert" hidden></div>
+      <div class="modal__actions">
+        <button type="button" id="terms-accept" class="btn">Accept</button>
+        <button type="button" id="terms-signout" class="btn btn--ghost">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOTP enrollment. -->
+  <div id="totp-modal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="totp-title" hidden>
+    <div class="modal__box">
+      <h2 id="totp-title">Set up two-step verification</h2>
+      <div id="totp-error" class="error-summary" role="alert" hidden></div>
+      <div id="totp-step-key">
+        <p>Scan this into your authenticator app, or enter the key manually:</p>
+        <p class="totp-key"><code id="totp-manual-key"></code></p>
+        <p><a id="totp-uri-link" href="#">Open in authenticator app</a></p>
+        <p>Then enter <strong>two consecutive codes</strong> from the app:</p>
+        <div class="form-field">
+          <label for="totp-code1">First code</label>
+          <input id="totp-code1" inputmode="numeric" maxlength="6" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label for="totp-code2">Second code (the next one shown)</label>
+          <input id="totp-code2" inputmode="numeric" maxlength="6" autocomplete="off">
+        </div>
+        <button type="button" id="totp-confirm" class="btn">Confirm</button>
+      </div>
+      <div id="totp-step-recovery" hidden>
+        <p><strong>Save these recovery codes somewhere safe.</strong>
+          They are shown once — each works a single time if you lose your authenticator.</p>
+        <ol id="totp-recovery-list" class="recovery-codes"></ol>
+        <label><input type="checkbox" id="totp-recovery-saved"> I have saved my recovery codes</label>
+        <button type="button" id="totp-done" class="btn" disabled>Done</button>
+      </div>
+    </div>
+  </div>
+</main>

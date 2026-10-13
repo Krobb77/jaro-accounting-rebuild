@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets and local config — never commit
+.env
+*.env
+!.env.example
+backend/.env
+
+# Runtime data (databases, uploads, mail capture, caches)
+var/
+*.db
+*.db-journal
+*.sqlite3
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Build leftovers
+*.log

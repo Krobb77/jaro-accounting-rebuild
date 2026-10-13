@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Client portal — Jaro Accounting</title>
+<meta name="description" content="Your myJaro client portal dashboard.">
+<link rel="canonical" href="https://jaroaccounting.com/portal/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Jaro Accounting">
+<meta property="og:title" content="Client portal — Jaro Accounting">
+<meta property="og:description" content="Your myJaro client portal dashboard.">
+<meta property="og:url" content="https://jaroaccounting.com/portal/">
+<meta property="og:image" content="https://jaroaccounting.com/assets/hero.webp">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"AccountingService","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"New Westminster","addressRegion":"BC","postalCode":"V3M 4B1","streetAddress":"215 Mowat Street"},"areaServed":"Canada","email":"jared@jaroaccounting.com","founder":{"@type":"Person","jobTitle":"Accountant and tax strategist","name":"Jared Robbins"},"image":"https://jaroaccounting.com/assets/hero.webp","legalName":"1238855 BC LTD","name":"Jaro Accounting","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","closes":"17:00","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday"],"opens":"09:00"},{"@type":"OpeningHoursSpecification","closes":"15:00","dayOfWeek":"Saturday","opens":"10:00"}],"priceRange":"$$","slogan":"Accounting. Tax. Strategy.","telephone":"+1-778-227-4891","url":"https://jaroaccounting.com/"}
+</script>
+<meta name="theme-color" content="#303030">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="utility-lane">
+    <div class="container utility-lane__inner">
+      <a class="utility-login" href="/portal/login">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1a3 3 0 0 0-3 3v3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-1.5 6V4a1.5 1.5 0 0 1 3 0v3h-3z"/></svg>
+        <span>Client Login</span>
+      </a>
+      <span class="utility-lane__spacer" aria-hidden="true"></span>
+      <a class="utility-phone" href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+      <span class="utility-hours">Mon&ndash;Fri 9&ndash;5 &middot; Sat 10&ndash;3</span>
+    </div>
+  </div>
+  <input class="nav-toggle" type="checkbox" id="nav-toggle" aria-label="Toggle navigation menu">
+  <div class="primary-lane">
+    <div class="container primary-lane__inner">
+      <a class="brand" href="/" aria-label="Jaro Accounting — home">
+        <span class="brand__name">Jaro Accounting</span>
+        <span class="brand__tagline">Accounting. Tax. Strategy.</span>
+      </a>
+      <label class="nav-toggle-label" for="nav-toggle">
+        <span class="nav-toggle-label__text">Menu</span>
+        <span class="icon icon-plus" aria-hidden="true">+</span>
+        <span class="icon icon-close" aria-hidden="true">&times;</span>
+      </label>
+      <nav class="site-nav" aria-label="Main navigation">
+        <div class="nav-list">
+          <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/about-us/">About Us</a></li>
+            <li><a href="/our-services/">Our Services</a></li>
+            <li><a href="/contact-us/">Contact Us</a></li>
+            <li><a href="/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
+          </ul>
+        </div>
+        <a class="btn nav-cta" href="/free-30-min-consultation/">Book FREE 30 Min Consultation</a>
+      </nav>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="site-main portal-page">
+  <div class="container">
+    <!-- Session warning banner (≤120s). -->
+    <div id="session-banner" class="session-banner" role="alert" hidden>
+      <p>Your session expires in <strong data-countdown>2:00</strong> due to inactivity.</p>
+      <button type="button" id="session-extend" class="btn btn--small">Stay signed in</button>
+    </div>
+
+    <nav class="portal-nav" aria-label="Portal">
+      <a href="/portal/" aria-current="page">Dashboard</a>
+      <a href="/portal/documents/">Documents</a>
+      <a href="/portal/filings/">Filings</a>
+      <a href="/portal/invoices/">Invoices</a>
+      <button type="button" id="portal-logout" class="link-button">Sign out</button>
+    </nav>
+
+    <div id="portal-error" class="error-summary" role="alert" hidden></div>
+    <div id="portal-root" role="status"><p>Loading your dashboard&hellip;</p></div>
+  </div>
+
+  <!-- Terms modal: no dismiss — Accept or Sign out. -->
+  <div id="terms-modal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="terms-title" hidden>
+    <div class="modal__box">
+      <h2 id="terms-title">Engagement terms</h2>
+      <div id="terms-body" class="terms-body"></div>
+      <div id="terms-error" class="error-summary" role="alert" hidden></div>
+      <div class="modal__actions">
+        <button type="button" id="terms-accept" class="btn">Accept</button>
+        <button type="button" id="terms-signout" class="btn btn--ghost">Sign out</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOTP enrollment. -->
+  <div id="totp-modal" class="modal" role="dialog" aria-modal="true"
+       aria-labelledby="totp-title" hidden>
+    <div class="modal__box">
+      <h2 id="totp-title">Set up two-step verification</h2>
+      <div id="totp-error" class="error-summary" role="alert" hidden></div>
+      <div id="totp-step-key">
+        <p>Scan this into your authenticator app, or enter the key manually:</p>
+        <p class="totp-key"><code id="totp-manual-key"></code></p>
+        <p><a id="totp-uri-link" href="#">Open in authenticator app</a></p>
+        <p>Then enter <strong>two consecutive codes</strong> from the app:</p>
+        <div class="form-field">
+          <label for="totp-code1">First code</label>
+          <input id="totp-code1" inputmode="numeric" maxlength="6" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label for="totp-code2">Second code (the next one shown)</label>
+          <input id="totp-code2" inputmode="numeric" maxlength="6" autocomplete="off">
+        </div>
+        <button type="button" id="totp-confirm" class="btn">Confirm</button>
+      </div>
+      <div id="totp-step-recovery" hidden>
+        <p><strong>Save these recovery codes somewhere safe.</strong>
+          They are shown once — each works a single time if you lose your authenticator.</p>
+        <ol id="totp-recovery-list" class="recovery-codes"></ol>
+        <label><input type="checkbox" id="totp-recovery-saved"> I have saved my recovery codes</label>
+        <button type="button" id="totp-done" class="btn" disabled>Done</button>
+      </div>
+    </div>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <nav aria-label="Footer — explore">
+        <h2 class="footer-heading">Explore</h2>
+        <ul class="footer-links">
+          <li><a href="/">Home</a></li>
+          <li><a href="/about-us/">About Us</a></li>
+          <li><a href="/our-services/">Our Services</a></li>
+          <li><a href="/contact-us/">Contact Us</a></li>
+          <li><a href="/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
+          <li><a href="/faq/">FAQ</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Footer — client area">
+        <h2 class="footer-heading">Client Area</h2>
+        <ul class="footer-links">
+          <li><a href="/portal/login">Client Login</a></li>
+          <li><a href="/free-30-min-consultation/">Book a Consultation</a></li>
+          <li><a href="/contact-us/">Get In Touch</a></li>
+        </ul>
+      </nav>
+      <div class="footer-contact">
+        <h2 class="footer-heading">Get In Touch</h2>
+        <address>
+          Jaro Accounting<br>
+          215 Mowat Street,<br>
+          New Westminster, BC V3M 4B1<br>
+          <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
+          <a href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+        </address>
+      </div>
+    </div>
+    <div class="trust-strip">
+      <span>&copy; 2026 Jaro Accounting (1238855 BC LTD)</span>
+      <span class="trust-strip__sep" aria-hidden="true">|</span>
+      <a href="/privacy/">Privacy</a>
+      <span class="trust-strip__sep" aria-hidden="true">|</span>
+      <a href="/terms/">Terms</a>
+      <span class="trust-strip__sep" aria-hidden="true">|</span>
+      <a href="/legal/">Legal</a>
+    </div>
+  </div>
+</footer>
+<script type="module" src="/js/portal.js"></script>
+</body>
+</html>

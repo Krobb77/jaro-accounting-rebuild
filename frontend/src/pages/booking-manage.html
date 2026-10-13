@@ -1,0 +1,25 @@
+---
+title: Manage your booking — Jaro Accounting
+description: Reschedule or cancel your free 30-minute consultation.
+path: /booking-manage/
+nav: none
+sitemap: false
+scripts: booking-manage.js
+---
+<main id="main" tabindex="-1" class="site-main">
+  <div class="container">
+    <section class="section" aria-labelledby="manage-heading">
+      <h1 id="manage-heading">Manage your booking</h1>
+      <div id="manage-error" class="error-summary" role="alert" hidden></div>
+      <!--
+        DEPLOY NOTE (Phase 4): confirmation emails link to /booking/manage/{token}.
+        The web server must serve THIS page for that prefix, e.g. nginx:
+            location ~ ^/booking/manage/ { try_files /booking-manage.html =404; }
+        The script reads the token from the URL path.
+      -->
+      <div id="manage-root">
+        <p class="bw-status" role="status">Loading your booking…</p>
+      </div>
+    </section>
+  </div>
+</main>

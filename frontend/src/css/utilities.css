@@ -1,0 +1,22 @@
+@layer utilities {
+  /* Visually hidden but available to screen readers / keyboard focus */
+  .sr-only,
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* Text-only gray (AA-approved deviation): small muted text on white */
+  .muted, .caption, small { color: var(--color-neutral-500-text); }
+
+  .text-center { text-align: center; }
+  .measure { max-inline-size: 65ch; } /* T3 readability measure */
+}

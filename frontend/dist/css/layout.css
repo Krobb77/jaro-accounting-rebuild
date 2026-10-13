@@ -1,0 +1,81 @@
+@layer layout {
+  /* Centered wide column — the site's alignwide convention */
+  .container {
+    width: 100%;
+    max-width: var(--container-wide);
+    margin-inline: auto;
+    padding-inline: var(--space-gutter);
+  }
+  .container--narrow { max-width: var(--container-narrow); }
+
+  .section { padding-block: var(--space-section); }
+  .section + .section { border-top: 1px solid var(--color-neutral-300); } /* C3 hairline dividers */
+  .section--band { background-color: var(--color-neutral-100); }          /* C4: one calm band */
+
+  /* Two-tier sticky header (PLAN 1.2 overrides the original non-sticky chrome) */
+  .site-header { position: sticky; top: 0; z-index: var(--z-nav-menu); }
+
+  .utility-lane {
+    background-color: var(--color-foreground-dark);
+    color: var(--color-background);
+    font-size: 0.875rem;
+  }
+  .utility-lane__inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding-block: var(--space-2);
+  }
+  .utility-lane__spacer { flex: 1; }
+
+  .primary-lane { background-color: var(--color-foreground); color: var(--color-background); }
+  .primary-lane__inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    padding-block: var(--space-3);
+  }
+
+  .site-main { display: block; }
+
+  /* Footer: sitemap-of-last-resort layout */
+  .site-footer {
+    padding-block: var(--space-7) var(--space-5);
+    padding-inline: max(var(--space-gutter), env(safe-area-inset-left));
+    padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+    border-top: 1px solid var(--color-neutral-300);
+  }
+  .footer-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+    gap: var(--space-gap);
+  }
+  .trust-strip {
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-neutral-300);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-5);
+    align-items: center;
+    font-size: 0.875rem;
+    color: var(--color-neutral-500-text);
+  }
+}
+
+@layer layout {
+  /* --- Intrinsic fluid grids (R1): cards and pricing wrap at content-driven
+     widths — fewer breakpoint states, no cramped mid-size columns. --- */
+  .card-grid, .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+    gap: var(--space-gap);
+  }
+  .split-block { /* homepage About / Get-In-Touch two-column */
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: var(--space-gap);
+    align-items: start;
+  }
+  .card-grid > *, .pricing-grid > *, .split-block > * { min-width: 0; } /* prevent blowout */
+}

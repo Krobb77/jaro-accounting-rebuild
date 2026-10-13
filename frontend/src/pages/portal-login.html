@@ -1,0 +1,83 @@
+---
+title: Client login — Jaro Accounting
+description: Sign in to your [[portal_name]] client portal. Two-step verification required. Access by invitation only.
+path: /portal/login/
+nav: none
+sitemap: false
+scripts: portal-login.js
+---
+<main id="main" tabindex="-1" class="site-main portal-page">
+  <div class="container container--narrow">
+    <section class="section" aria-labelledby="login-heading">
+      <div class="portal-card">
+        <p class="portal-brand">Jaro Accounting</p>
+        <h1 id="login-heading">Client sign in</h1>
+        <p class="portal-posture">
+          Two-step verification required &middot; Signed out after 15 minutes idle &middot;
+          Access by invitation only
+        </p>
+
+        <div id="login-error" class="error-summary" role="alert" hidden></div>
+        <div id="login-expired-note" class="notice" role="status" hidden>
+          Your session expired and you were signed out. Please sign in again.
+        </div>
+
+        <form id="login-form" novalidate>
+          <div class="form-field">
+            <label for="login-email">Email address</label>
+            <input id="login-email" name="email" type="email" autocomplete="username"
+                   required maxlength="320" aria-describedby="login-email-hint">
+            <p class="form-hint" id="login-email-hint">The email address your invitation was sent to.</p>
+          </div>
+          <div class="form-field">
+            <label for="login-password">Password</label>
+            <input id="login-password" name="password" type="password"
+                   autocomplete="current-password" required>
+          </div>
+          <button class="btn" type="submit" id="login-submit">Continue</button>
+          <p class="form-footnote"><a href="/portal/reset-password/">Forgot your password?</a></p>
+        </form>
+
+        <form id="mfa-form" novalidate hidden>
+          <p>Enter the 6-digit code from your authenticator app.</p>
+          <div class="form-field">
+            <label for="mfa-code">Authentication code</label>
+            <input id="mfa-code" name="code" type="text" inputmode="numeric"
+                   autocomplete="one-time-code" maxlength="32" required>
+          </div>
+          <div id="sms-block" hidden>
+            <p class="form-hint">Or <button type="button" id="sms-request" class="link-button">send a code by text message</button> instead.</p>
+            <div class="form-field" id="sms-code-field" hidden>
+              <label for="sms-code">Text message code</label>
+              <input id="sms-code" name="sms_code" type="text" inputmode="numeric" maxlength="6">
+            </div>
+          </div>
+          <button class="btn" type="submit" id="mfa-submit">Verify and sign in</button>
+          <p class="form-footnote"><button type="button" id="mfa-back" class="link-button">Back to email and password</button></p>
+        </form>
+
+        <details class="portal-help">
+          <summary>Need help signing in?</summary>
+          <div class="portal-help__body">
+            <h2>What a real Jaro invitation looks like</h2>
+            <p>A genuine invitation email from Jaro Accounting:</p>
+            <ul>
+              <li>Comes from <strong>jared@jaroaccounting.com</strong>.</li>
+              <li>Addresses you by name and shows your email as your username.</li>
+              <li>Has <strong>one</strong> link: a "Set your password" button pointing to
+                <code>https://jaroaccounting.com/portal/accept</code> — the link expires after 7 days.</li>
+              <li>Never asks for your password by email or phone. We'll never ask.</li>
+            </ul>
+            <p>If an email asks you to sign in anywhere else, or asks for your password,
+              don't click — contact Jared Robbins directly at
+              <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a>
+              or <a href="tel:+17782274891">1-(778)-227-4891</a>.</p>
+            <h2>Locked out?</h2>
+            <p>If you've lost access to your authenticator app, contact Jared and he can
+              reset your two-step verification after verifying your identity.</p>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+</main>

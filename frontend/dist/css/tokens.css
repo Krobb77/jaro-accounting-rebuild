@@ -1,0 +1,59 @@
+@layer tokens {
+  :root {
+    /* --- Brand palette (from the live site's theme presets) ---
+       NOTE: the old blue secondary preset is deliberately EXCLUDED from the
+       rebuild palette (Phase 1 DONE criterion: no secondary blue usage in UI).
+       The single hover token is --color-primary-hover (#B41E1C);
+       no other derived red shade may appear anywhere in this codebase. */
+    --color-primary: #CD2220;          /* red: CTA buttons, accents, quote border */
+    --color-primary-hover: #B41E1C;    /* SINGLE hover/active token for primary */
+    --color-foreground: #303030;      /* charcoal: header bar, headings, body base */
+    --color-foreground-dark: #101010; /* near-black: dark buttons */
+    --color-background: #FFFFFF;      /* page + footer background */
+    --color-neutral-100: #f2f2f2;
+    --color-neutral-300: #d9d9d9;
+    --color-neutral-500: #8c8c8c;
+    --color-neutral-700: #4d4d4d;
+
+    /* --- APPROVED DEVIATION: text-only gray for WCAG AA (A11) ---
+       #8c8c8c on white is 3.36:1 (fails); #767676 is 4.54:1 (passes).
+       Borders/dividers may keep #8c8c8c; running text must use this token. */
+    --color-neutral-500-text: #767676;
+
+    /* --- Type scale (fluid at top, fixed floor at body) --- */
+    --text-body:    1rem;                                        /* 16px, never scales */
+    --text-lead:    clamp(1.125rem, 1rem + 0.5vw, 1.375rem);     /* hero subhead, pull-quote */
+    --text-h5:      clamp(1rem, 0.9rem + 0.4vw, 1.125rem);       /* card titles */
+    --text-h3:      clamp(1.25rem, 1rem + 1vw, 1.625rem);
+    --text-h2:      clamp(1.625rem, 1.2rem + 1.9vw, 2.375rem);   /* section headings */
+    --text-display: clamp(2.25rem, 1.4rem + 4.2vw, 4.5rem);      /* hero headline */
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    /* rem terms inside clamp() keep text responsive to user zoom */
+
+    /* --- Spacing scale (4px base) --- */
+    --space-1: 0.25rem;  --space-2: 0.5rem;  --space-3: 0.75rem;
+    --space-4: 1rem;     --space-5: 1.5rem;  --space-6: 2rem;
+    --space-7: 3rem;     --space-8: 4rem;    --space-9: 6rem;   --space-10: 8rem;
+    --space-section: clamp(2.5rem, 6vw + 1rem, 5.5rem);  /* section padding-block */
+    --space-gutter:  clamp(1rem, 4vw, 2rem);            /* container inline padding */
+    --space-gap:     clamp(1rem, 3vw, 2rem);            /* grid/flex gaps */
+
+    /* --- Shape, elevation, motion --- */
+    --radius-pill: 999px;
+    --radius-md: 0.5rem;      /* cards */
+    --radius-sm: 0.375rem;    /* form controls */
+    --shadow-card: 0 2px 8px rgb(16 16 16 / 0.08);
+    --shadow-raised: 0 8px 24px rgb(16 16 16 / 0.12);
+    --duration-fast: 150ms;   --duration-mid: 250ms;
+    --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+    /* --- Layout --- */
+    --container-wide: 72rem;     /* page sections */
+    --container-narrow: 40rem;   /* forms, booking widget */
+    --z-nav-menu: 60;
+
+    /* --- Focus ring --- */
+    --focus-ring-width: 3px;
+    --focus-ring-offset: 2px;
+  }
+}

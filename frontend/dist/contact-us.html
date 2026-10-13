@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contact Us — Jaro Accounting</title>
+<meta name="description" content="Get in touch with Jaro Accounting — call 1-(778)-227-4891, email jared@jaroaccounting.com, or send a message. Mon–Fri 9–5, Sat 10–3.">
+<link rel="canonical" href="https://jaroaccounting.com/contact-us/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Jaro Accounting">
+<meta property="og:title" content="Contact Us — Jaro Accounting">
+<meta property="og:description" content="Get in touch with Jaro Accounting — call 1-(778)-227-4891, email jared@jaroaccounting.com, or send a message. Mon–Fri 9–5, Sat 10–3.">
+<meta property="og:url" content="https://jaroaccounting.com/contact-us/">
+<meta property="og:image" content="https://jaroaccounting.com/assets/hero.webp">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"AccountingService","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"New Westminster","addressRegion":"BC","postalCode":"V3M 4B1","streetAddress":"215 Mowat Street"},"areaServed":"Canada","email":"jared@jaroaccounting.com","founder":{"@type":"Person","jobTitle":"Accountant and tax strategist","name":"Jared Robbins"},"image":"https://jaroaccounting.com/assets/hero.webp","legalName":"1238855 BC LTD","name":"Jaro Accounting","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","closes":"17:00","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday"],"opens":"09:00"},{"@type":"OpeningHoursSpecification","closes":"15:00","dayOfWeek":"Saturday","opens":"10:00"}],"priceRange":"$$","slogan":"Accounting. Tax. Strategy.","telephone":"+1-778-227-4891","url":"https://jaroaccounting.com/"}
+</script>
+<meta name="theme-color" content="#303030">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="utility-lane">
+    <div class="container utility-lane__inner">
+      <a class="utility-login" href="/portal/login">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1a3 3 0 0 0-3 3v3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-1.5 6V4a1.5 1.5 0 0 1 3 0v3h-3z"/></svg>
+        <span>Client Login</span>
+      </a>
+      <span class="utility-lane__spacer" aria-hidden="true"></span>
+      <a class="utility-phone" href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+      <span class="utility-hours">Mon&ndash;Fri 9&ndash;5 &middot; Sat 10&ndash;3</span>
+    </div>
+  </div>
+  <input class="nav-toggle" type="checkbox" id="nav-toggle" aria-label="Toggle navigation menu">
+  <div class="primary-lane">
+    <div class="container primary-lane__inner">
+      <a class="brand" href="/" aria-label="Jaro Accounting — home">
+        <span class="brand__name">Jaro Accounting</span>
+        <span class="brand__tagline">Accounting. Tax. Strategy.</span>
+      </a>
+      <label class="nav-toggle-label" for="nav-toggle">
+        <span class="nav-toggle-label__text">Menu</span>
+        <span class="icon icon-plus" aria-hidden="true">+</span>
+        <span class="icon icon-close" aria-hidden="true">&times;</span>
+      </label>
+      <nav class="site-nav" aria-label="Main navigation">
+        <div class="nav-list">
+          <ul>
+            <li><a href="/">Home</a></li>
+            <li><a href="/about-us/">About Us</a></li>
+            <li><a href="/our-services/">Our Services</a></li>
+            <li><a href="/contact-us/" aria-current="page">Contact Us</a></li>
+            <li><a href="/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
+          </ul>
+        </div>
+        <a class="btn nav-cta" href="/free-30-min-consultation/">Book FREE 30 Min Consultation</a>
+      </nav>
+    </div>
+  </div>
+</header>
+<main id="main" tabindex="-1" class="site-main">
+  <div class="container">
+    <section class="section" aria-labelledby="contact-heading">
+      <h1 id="contact-heading">Contact Us</h1>
+
+      <h2>Get in Touch.</h2>
+      <div class="measure">
+        <p>Don&rsquo;t hesitate to reach out with the contact information below, or send a message using the form.</p>
+        <p class="muted"><small>*You can also chat live with our support team by clicking the WhatsApp button under &lsquo;Need more help?&rsquo;.</small></p>
+        <p><strong>Prefer to talk?</strong> <a href="/free-30-min-consultation/">Book a free consultation</a> instead &mdash; 30 minutes, no charge.</p>
+      </div>
+
+      <div class="split-block">
+        <div>
+          <h3>Send a Message</h3>
+          <!-- Wired (Phase 2): submits to POST /api/v1/inquiries via /js/contact.js
+               (validated submit, fresh Idempotency-Key per attempt, owner
+               notification + submitter receipt queued through the outbox).
+               JS owns submission; native constraints (required, type=email,
+               maxlength) run before the submit handler. -->
+          <form class="contact-form" id="contact-form" data-endpoint="/api/v1/inquiries">
+            <div class="error-summary" id="contact-error-summary" role="alert" tabindex="-1" hidden></div>
+            <p class="field-hint" id="contact-required-note">Fields marked <span class="req-indicator" aria-hidden="true">*</span> are required.</p>
+            <div class="field">
+              <label for="contact-name">Name <span class="req-indicator" aria-hidden="true">*</span><span class="visually-hidden">(required)</span></label>
+              <input class="field-control" type="text" id="contact-name" name="name" required autocomplete="name" maxlength="120">
+            </div>
+            <div class="field">
+              <label for="contact-email">Email <span class="req-indicator" aria-hidden="true">*</span><span class="visually-hidden">(required)</span></label>
+              <input class="field-control" type="email" id="contact-email" name="email" required autocomplete="email" maxlength="254">
+            </div>
+            <div class="field">
+              <label for="contact-message">Message <span class="req-indicator" aria-hidden="true">*</span><span class="visually-hidden">(required)</span></label>
+              <textarea class="field-control" id="contact-message" name="message" required maxlength="5000"></textarea>
+              <p class="field-hint">Please don&rsquo;t include SINs or bank account numbers here &mdash; we&rsquo;ll collect documents securely after your consultation.</p>
+            </div>
+            <button class="btn" type="submit">Submit</button>
+          </form>
+          <div class="notice-box" id="contact-success" tabindex="-1" hidden>
+            <h3>Thanks &mdash; your message is queued.</h3>
+            <p>Your reference: <strong id="contact-reference"></strong></p>
+            <p class="measure">We&rsquo;ve queued your message for Jared. He&rsquo;ll review it and reply from jared@jaroaccounting.com<span id="contact-sla-wrap">, normally within <span id="contact-sla"></span></span>. There&rsquo;s no need to send it again.</p>
+            <p class="measure">If it&rsquo;s urgent, call <a href="tel:1-(778)-227-4891">1-(778)-227-4891</a>.</p>
+          </div>
+        </div>
+
+        <div>
+          <h3>Contact Information</h3>
+          <address class="measure">
+            <strong>Jaro Accounting</strong><br>
+            1238855 BC LTD<br>
+            <a href="tel:1-(778)-227-4891">1-(778)-227-4891</a><br>
+            <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a>
+          </address>
+
+          <h3>Business Hours</h3>
+          <div class="hours-table-wrap" tabindex="0" role="region" aria-label="Business hours">
+            <table class="hours-table">
+              <caption class="sr-only">Jaro Accounting business hours</caption>
+              <thead>
+                <tr><th scope="col">Day</th><th scope="col">Hours</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Monday &ndash; Friday</th><td>09:00 &ndash; 17:00</td></tr>
+                <tr><th scope="row">Saturday</th><td>10:00 &ndash; 15:00</td></tr>
+                <tr><th scope="row">Sunday</th><td>Closed</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Visit Us</h3>
+          <address class="measure">
+            215 Mowat Street,<br>
+            New Westminster, BC V3M 4B1<br>
+            <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
+            <a href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+          </address>
+
+          <h3>Need more help?</h3>
+          <p class="measure">Have questions or inquiries? We&rsquo;re here to help. Reach our friendly support team via WhatsApp.</p>
+          <p><a class="btn btn--whatsapp" href="https://api.whatsapp.com/send?phone=17782274891&amp;text=Hi%2C%20I%20got%20your%20WhatsApp%20information%20from%20your%20website.">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.6-6.1c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4 0-.5.1-.7l.4-.5c.1-.2.1-.3 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.2-.7.3-.9.9-1.1 2.2-.2 3.9a11.6 11.6 0 0 0 4.5 4.2c1.7.8 2.4.9 3.2.7.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2 0-.1-.2-.1-.5-.3z"/></svg>
+            Chat on WhatsApp</a></p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <nav aria-label="Footer — explore">
+        <h2 class="footer-heading">Explore</h2>
+        <ul class="footer-links">
+          <li><a href="/">Home</a></li>
+          <li><a href="/about-us/">About Us</a></li>
+          <li><a href="/our-services/">Our Services</a></li>
+          <li><a href="/contact-us/">Contact Us</a></li>
+          <li><a href="/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
+          <li><a href="/faq/">FAQ</a></li>
+        </ul>
+      </nav>
+      <nav aria-label="Footer — client area">
+        <h2 class="footer-heading">Client Area</h2>
+        <ul class="footer-links">
+          <li><a href="/portal/login">Client Login</a></li>
+          <li><a href="/free-30-min-consultation/">Book a Consultation</a></li>
+          <li><a href="/contact-us/">Get In Touch</a></li>
+        </ul>
+      </nav>
+      <div class="footer-contact">
+        <h2 class="footer-heading">Get In Touch</h2>
+        <address>
+          Jaro Accounting<br>
+          215 Mowat Street,<br>
+          New Westminster, BC V3M 4B1<br>
+          <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
+          <a href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+        </address>
+      </div>
+    </div>
+    <div class="trust-strip">
+      <span>&copy; 2026 Jaro Accounting (1238855 BC LTD)</span>
+      <span class="trust-strip__sep" aria-hidden="true">|</span>
+      <a href="/privacy/">Privacy</a>
+      <span class="trust-strip__sep" aria-hidden="true">|</span>
+      <a href="/terms/">Terms</a>
+      <span class="trust-strip__sep" aria-hidden="true">|</span>
+      <a href="/legal/">Legal</a>
+    </div>
+  </div>
+</footer>
+<script type="module" src="/js/contact.js"></script>
+</body>
+</html>

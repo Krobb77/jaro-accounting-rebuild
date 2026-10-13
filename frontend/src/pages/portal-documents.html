@@ -1,0 +1,61 @@
+---
+title: Documents — Jaro Accounting
+description: Upload and download documents in your [[portal_name]] client portal vault.
+path: /portal/documents/
+nav: none
+sitemap: false
+scripts: portal-documents.js
+---
+<main id="main" tabindex="-1" class="site-main portal-page">
+  <div class="container">
+    <div id="session-banner" class="session-banner" role="alert" hidden>
+      <p>Your session expires in <strong data-countdown>2:00</strong> due to inactivity.</p>
+      <button type="button" id="session-extend" class="btn btn--small">Stay signed in</button>
+    </div>
+    <nav class="portal-nav" aria-label="Portal">
+      <a href="/portal/">Dashboard</a>
+      <a href="/portal/documents/" aria-current="page">Documents</a>
+      <a href="/portal/filings/">Filings</a>
+      <a href="/portal/invoices/">Invoices</a>
+      <button type="button" id="portal-logout" class="link-button">Sign out</button>
+    </nav>
+    <h1>Documents</h1>
+    <div id="portal-error" class="error-summary" role="alert" hidden></div>
+
+    <section class="portal-section" aria-labelledby="upload-heading">
+      <h2 id="upload-heading">Upload a document</h2>
+      <p class="form-hint">PDF, JPG, PNG, DOC, DOCX, XLS, XLSX, CSV, or ZIP — up to 25&nbsp;MB each.
+        Files are scanned for type on upload.</p>
+      <form id="upload-form">
+        <div class="form-field">
+          <label for="upload-file">File</label>
+          <input id="upload-file" type="file" required
+                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv,.zip">
+        </div>
+        <div class="form-field">
+          <label for="upload-category">Category</label>
+          <select id="upload-category">
+            <option value="tax_slips">Tax slips</option>
+            <option value="receipts">Receipts</option>
+            <option value="bank_statements">Bank statements</option>
+            <option value="payroll_records">Payroll records</option>
+            <option value="correspondence">Correspondence</option>
+            <option value="other" selected>Other</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="upload-label">Note (optional)</label>
+          <input id="upload-label" type="text" maxlength="500"
+                 placeholder="e.g. T4 from employer">
+        </div>
+        <button class="btn" type="submit" id="upload-submit">Upload</button>
+      </form>
+      <div id="upload-progress" role="status" hidden></div>
+    </section>
+
+    <section class="portal-section" aria-labelledby="docs-heading">
+      <h2 id="docs-heading">Your documents</h2>
+      <div id="docs-root" role="status"><p>Loading documents&hellip;</p></div>
+    </section>
+  </div>
+</main>

@@ -1,0 +1,66 @@
+---
+title: Owner console — Jaro Accounting
+description: Jared's [[portal_name]] owner console.
+path: /portal/admin/
+nav: none
+sitemap: false
+scripts: portal-admin.js
+---
+<main id="main" tabindex="-1" class="site-main portal-page">
+  <div class="container">
+    <nav class="portal-nav" aria-label="Owner console">
+      <a href="/portal/admin/" aria-current="page">Clients</a>
+      <a href="/portal/admin/#invitations">Invitations</a>
+      <a href="/portal/admin/#audit">Audit</a>
+      <button type="button" id="admin-logout" class="link-button">Sign out</button>
+    </nav>
+    <h1>Owner console</h1>
+    <div id="admin-error" class="error-summary" role="alert" hidden></div>
+
+    <section class="portal-section" aria-labelledby="clients-heading">
+      <h2 id="clients-heading">Clients</h2>
+      <div class="form-field">
+        <label for="client-search">Search clients</label>
+        <input id="client-search" type="search" placeholder="Name or email">
+      </div>
+      <div id="clients-root" role="status"><p>Loading clients&hellip;</p></div>
+    </section>
+
+    <section class="portal-section" aria-labelledby="dossier-heading" id="dossier-section" hidden>
+      <h2 id="dossier-heading">Client dossier</h2>
+      <div class="dossier-tabs" role="tablist" aria-label="Dossier">
+        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-tab="documents" aria-selected="false">Documents</button>
+        <button role="tab" data-tab="filings" aria-selected="false">Filings</button>
+        <button role="tab" data-tab="invoices" aria-selected="false">Invoices</button>
+        <button role="tab" data-tab="activity" aria-selected="false">Activity</button>
+      </div>
+      <div id="dossier-root"></div>
+    </section>
+
+    <section class="portal-section" aria-labelledby="invites-heading" id="invitations">
+      <h2 id="invites-heading">Invitations</h2>
+      <form id="invite-form">
+        <div class="form-field">
+          <label for="invite-name">Client name</label>
+          <input id="invite-name" required maxlength="200">
+        </div>
+        <div class="form-field">
+          <label for="invite-email">Email</label>
+          <input id="invite-email" type="email" required maxlength="320">
+        </div>
+        <div class="form-field">
+          <label for="invite-phone">Phone (optional, E.164)</label>
+          <input id="invite-phone" type="tel" placeholder="+16045550101">
+        </div>
+        <button class="btn" type="submit">Send invitation</button>
+      </form>
+      <div id="invites-root" role="status"><p>Loading invitations&hellip;</p></div>
+    </section>
+
+    <section class="portal-section" aria-labelledby="audit-heading" id="audit">
+      <h2 id="audit-heading">Audit trail</h2>
+      <div id="audit-root" role="status"><p>Loading audit trail&hellip;</p></div>
+    </section>
+  </div>
+</main>

@@ -1,0 +1,23 @@
+@layer print {
+  /* Print stylesheet (AR5): paper is the same content minus interactive chrome. */
+  @media print {
+    :root {
+      --color-foreground: #000;
+      --color-foreground-dark: #000;
+      --color-primary: #000;
+      --shadow-card: none;
+      --shadow-raised: none;
+    }
+    .site-header, .hero, .booking-widget, .contact-form, .btn,
+    .nav-toggle, .nav-toggle-label, .skip-link { display: none !important; }
+    body { background: #fff; font-size: 11pt; line-height: 1.5; }
+    .service-card, .pull-quote, .hours-table, tr { break-inside: avoid; }
+    thead { display: table-header-group; }
+    .site-main a[href^="http"]::after {
+      content: " (" attr(href) ")";
+      font-size: 0.85em;
+      word-break: break-all;
+    }
+    .site-main a { color: inherit; text-decoration: none; }
+  }
+}

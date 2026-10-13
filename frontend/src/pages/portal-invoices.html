@@ -1,0 +1,27 @@
+---
+title: Invoices — Jaro Accounting
+description: View and download your invoices in your [[portal_name]] client portal.
+path: /portal/invoices/
+nav: none
+sitemap: false
+scripts: portal-invoices.js
+---
+<main id="main" tabindex="-1" class="site-main portal-page">
+  <div class="container">
+    <div id="session-banner" class="session-banner" role="alert" hidden>
+      <p>Your session expires in <strong data-countdown>2:00</strong> due to inactivity.</p>
+      <button type="button" id="session-extend" class="btn btn--small">Stay signed in</button>
+    </div>
+    <nav class="portal-nav" aria-label="Portal">
+      <a href="/portal/">Dashboard</a>
+      <a href="/portal/documents/">Documents</a>
+      <a href="/portal/filings/">Filings</a>
+      <a href="/portal/invoices/" aria-current="page">Invoices</a>
+      <button type="button" id="portal-logout" class="link-button">Sign out</button>
+    </nav>
+    <h1>Invoices</h1>
+    <p class="form-hint">Payment happens outside the portal — your invoice lists how to pay.</p>
+    <div id="portal-error" class="error-summary" role="alert" hidden></div>
+    <div id="invoices-root" role="status"><p>Loading your invoices&hellip;</p></div>
+  </div>
+</main>
