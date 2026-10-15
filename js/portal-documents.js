@@ -1,7 +1,7 @@
 /* /portal/documents/ — vault list + upload (resumable on session timeout). */
 import {
   portalApi, ApiRequestError, startSessionWatch, requireSession,
-  idempotencyKey, esc, vancouverDateTime,
+  initPortalChrome, idempotencyKey, esc, vancouverDateTime,
 } from "./portal-api.js";
 
 const root = document.getElementById("docs-root");
@@ -27,7 +27,8 @@ async function loadDocs() {
   const res = await portalApi.get("/documents");
   const items = res.items || [];
   if (!items.length) {
-    root.innerHTML = "<p class=\"portal-empty\">No documents yet. Uploaded files and anything Jared shares with you will appear here.</p>";
+    root.innerHTML = `<p class="portal-empty">Your vault is empty. Tax slips, receipts, bank statements, and anything Jared shares with you will live here.</p>
+      <p class="portal-empty-action"><a class="btn btn--small" href="#upload-heading">Upload your first document</a></p>`;
     return;
   }
   let html = `<ul class="portal-list">`;
@@ -92,6 +93,7 @@ uploadForm.addEventListener("submit", async (e) => {
 });
 
 (async function init() {
+  initPortalChrome();
   await requireSession();
   startSessionWatch({ bannerEl: banner, extendBtn });
   try {

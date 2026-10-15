@@ -1,6 +1,6 @@
 /* /portal/ — dashboard, onboarding gates, session watch. */
 import {
-  portalApi, ApiRequestError, startSessionWatch,
+  portalApi, ApiRequestError, startSessionWatch, initPortalChrome,
   esc, vancouverDateTime,
 } from "./portal-api.js";
 
@@ -36,6 +36,7 @@ async function ensureTerms() {
   termsHash = current.version_hash;
   termsBody.innerHTML = current.body_html; // server-rendered firm copy
   termsModal.hidden = false;
+  root.innerHTML = ""; // keep "Loading your dashboard…" from sitting behind the modal
   document.getElementById("terms-accept").focus();
   return false;
 }
@@ -58,6 +59,46 @@ document.getElementById("terms-signout").addEventListener("click", async () => {
 });
 
 // --- dashboard ---------------------------------------------------------------------
+const FILING_STATUS_LABELS = {
+  collecting: "Collecting documents",
+  awaiting_info: "Awaiting info",
+  preparing: "Preparing",
+  filed: "Filed with CRA",
+  confirmed: "Confirmed by CRA",
+};
+
+function money(cents) {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+/* P18: key-facts summary strip — "what needs me" first. Values come from the
+   API (demo figures under the stub); labels stay demo-plausible, never
+   invented facts. */
+function factsStrip(d) {
+  const s = d.snapshots;
+  const filing = s.filings[0];
+  const open = s.invoices.open_count;
+  const owing = s.invoices.total_owing_cents;
+  const docs = s.documents;
+  return `<section class="portal-facts" aria-label="Key facts">
+    <div class="portal-fact">
+      <p class="portal-fact__label">Next filing</p>
+      <p class="portal-fact__value">${filing ? esc(`${filing.kind_label} ${filing.tax_year}`) : "None yet"}</p>
+      <p class="portal-fact__sub">${filing ? esc(FILING_STATUS_LABELS[filing.status] || filing.status) : "Jared will start one for you"}</p>
+    </div>
+    <div class="portal-fact">
+      <p class="portal-fact__label">Balance owing</p>
+      <p class="portal-fact__value">${money(owing)}</p>
+      <p class="portal-fact__sub">${open ? `${open} open invoice${open === 1 ? "" : "s"}` : "Nothing owing"}</p>
+    </div>
+    <div class="portal-fact">
+      <p class="portal-fact__label">Documents</p>
+      <p class="portal-fact__value">${docs.new_count ? `${docs.new_count} new` : `${docs.count} on file`}</p>
+      <p class="portal-fact__sub">${docs.new_count ? `${docs.count} on file — see Needs attention` : "Shared files appear here"}</p>
+    </div>
+  </section>`;
+}
+
 function attentionSection(title, items, renderItem) {
   if (!items.length) return "";
   return `<section class="portal-section" aria-label="${esc(title)}">
@@ -72,6 +113,7 @@ async function boot() {
     const d = await portalApi.get("/dashboard");
     const na = d.needs_attention;
     let html = `<h1>${esc(d.greeting)}</h1>`;
+    html += factsStrip(d);
     const hasAttention = na.filings.length || na.invoices.length || na.documents.length;
     if (hasAttention) {
       html += `<section class="portal-attention" aria-label="Needs attention"><h2>Needs attention</h2>`;
@@ -88,12 +130,6 @@ async function boot() {
     } else {
       html += `<p class="portal-empty">You're all caught up. New documents, filings, and invoices will appear here.</p>`;
     }
-    const s = d.snapshots;
-    html += `<section class="portal-cards" aria-label="Snapshot">`;
-    html += `<div class="portal-card-mini"><h2>Filings</h2><p>${s.filings.length ? `${esc(s.filings[0].kind_label)} ${esc(s.filings[0].tax_year)} — ${esc(s.filings[0].status)}` : "No filings yet"}</p></div>`;
-    html += `<div class="portal-card-mini"><h2>Documents</h2><p>${s.documents.count} on file${s.documents.new_count ? `, ${s.documents.new_count} new` : ""}</p></div>`;
-    html += `<div class="portal-card-mini"><h2>Invoices</h2><p>${s.invoices.open_count} open — $${(s.invoices.total_owing_cents / 100).toFixed(2)} owing</p></div>`;
-    html += `</section>`;
     if (d.activity.length) {
       html += `<section class="portal-section" aria-label="Recent activity"><h2>Recent activity</h2><ul class="portal-list">`;
       for (const a of d.activity) {
@@ -123,6 +159,7 @@ async function boot() {
 }
 
 (async function init() {
+  initPortalChrome();
   const termsOk = await ensureTerms().catch((err) => {
     if (err instanceof ApiRequestError && err.status === 401) {
       window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";

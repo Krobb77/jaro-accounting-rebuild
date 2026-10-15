@@ -175,6 +175,22 @@ clearFieldErrorOnInput(newPasswordInput, newPasswordError);
 clearFieldErrorOnInput(newPasswordConfirm, newPasswordConfirmError);
 wirePasswordToggle("new-password", "new-password-toggle");
 
+// Progressive guidance while typing (length-first policy, no composition
+// rules — mirrors exactly what the backend enforces). Neutral until met;
+// never red before interaction (P17).
+const checklist = document.getElementById("new-password-checklist");
+const checkLength = checklist.querySelector('[data-check="length"]');
+const checkMatch = checklist.querySelector('[data-check="match"]');
+function syncChecklist() {
+  const pw = newPasswordInput.value;
+  const confirm = newPasswordConfirm.value;
+  checkLength.dataset.met = String(pw.length >= 12);
+  checkMatch.dataset.met = String(pw.length > 0 && confirm === pw);
+}
+newPasswordInput.addEventListener("input", syncChecklist);
+newPasswordConfirm.addEventListener("input", syncChecklist);
+syncChecklist();
+
 changeForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   hideError();

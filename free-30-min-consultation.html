@@ -56,7 +56,6 @@
             <li><a href="/jaro-accounting-rebuild/about-us/">About Us</a></li>
             <li><a href="/jaro-accounting-rebuild/our-services/">Our Services</a></li>
             <li><a href="/jaro-accounting-rebuild/contact-us/">Contact Us</a></li>
-            <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/" aria-current="page">FREE 30 Min Consultation!</a></li>
           </ul>
         </div>
         <a class="btn nav-cta" href="/jaro-accounting-rebuild/free-30-min-consultation/">Book FREE 30 Min Consultation</a>
@@ -73,9 +72,13 @@
       <div id="booking-widget">
         <div id="bw-error" class="error-summary" role="alert" hidden></div>
 
-        <!-- Timezone-first modal: no times are shown until the guest's
-             zone is known, so every slot is real in their own zone. -->
+        <!-- Timezone-first: no times are shown until the guest's zone is
+             known, so every slot is real in their own zone. PX3: the page
+             stays readable — nothing auto-opens. The visitor sets their
+             zone when they're ready (the prompt below), and the dialog is
+             always dismissible (×, ESC, backdrop click). -->
         <dialog id="bw-tz-dialog" aria-labelledby="bw-tz-title">
+          <button type="button" class="bw-dialog-close" id="bw-tz-close" aria-label="Close time zone dialog">&times;</button>
           <form id="bw-tz-form" method="dialog">
             <h2 id="bw-tz-title">Where are you?</h2>
             <p class="microcopy">We show every available time in <em>your</em> time zone, so pick it first.</p>
@@ -93,11 +96,33 @@
           </form>
         </dialog>
 
+        <!-- PX3: non-blocking timezone affordance. Shown when no zone is
+             stored yet; the page above and below stays fully readable. -->
+        <section id="bw-tz-prompt" class="bw-tz-prompt" aria-labelledby="bw-tz-prompt-title" hidden>
+          <h2 id="bw-tz-prompt-title">Set your time zone</h2>
+          <p class="microcopy">We show every available time in <em>your</em> time zone &mdash; tell us where you are to open the calendar.</p>
+          <p><button type="button" class="btn" id="bw-tz-open">Choose time zone</button></p>
+        </section>
+
+        <!-- P12: step position indicator -->
+        <nav class="bw-steps" id="bw-steps" aria-label="Booking progress" hidden>
+          <ol>
+            <li data-step="calendar"><span class="bw-steps-num" aria-hidden="true">1</span><span>Choose a day</span></li>
+            <li data-step="slots"><span class="bw-steps-num" aria-hidden="true">2</span><span>Pick a time</span></li>
+            <li data-step="form"><span class="bw-steps-num" aria-hidden="true">3</span><span>Your details</span></li>
+          </ol>
+        </nav>
+
         <!-- Step 1: day -->
         <section id="bw-step-calendar" aria-labelledby="bw-calendar-title" hidden>
           <h2 id="bw-calendar-title" tabindex="-1">Choose a day</h2>
           <p class="microcopy">Showing times in <strong id="bw-tz-echo"></strong>.
             <button type="button" class="linklike" id="bw-tz-change">Change time zone</button></p>
+          <!-- P13: legend for the coded day styles -->
+          <ul class="bw-legend" aria-label="Calendar legend">
+            <li><span class="bw-legend-swatch is-available" aria-hidden="true"></span>Available</li>
+            <li><span class="bw-legend-swatch is-unavailable" aria-hidden="true"></span>Unavailable</li>
+          </ul>
           <div class="bw-calendar-nav">
             <button type="button" class="btn btn-ghost" id="bw-prev-month" aria-label="Previous month">&larr;</button>
             <div>
@@ -241,7 +266,7 @@
           <li><a href="/jaro-accounting-rebuild/about-us/">About Us</a></li>
           <li><a href="/jaro-accounting-rebuild/our-services/">Our Services</a></li>
           <li><a href="/jaro-accounting-rebuild/contact-us/">Contact Us</a></li>
-          <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
+          <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">Free 30-Minute Consultation</a></li>
           <li><a href="/jaro-accounting-rebuild/faq/">FAQ</a></li>
         </ul>
       </nav>
@@ -262,6 +287,9 @@
           <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
           <a href="tel:+17782274891">1-(778)-227-4891</a>
         </address>
+        <!-- Hours live here (not only in the header utility lane) so they
+             stay visible on mobile, where the header lane hides them. -->
+        <p class="footer-hours">Mon&ndash;Fri 9&ndash;5 &middot; Sat 10&ndash;3</p>
       </div>
     </div>
     <div class="trust-strip">

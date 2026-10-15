@@ -56,7 +56,6 @@
             <li><a href="/jaro-accounting-rebuild/about-us/">About Us</a></li>
             <li><a href="/jaro-accounting-rebuild/our-services/">Our Services</a></li>
             <li><a href="/jaro-accounting-rebuild/contact-us/">Contact Us</a></li>
-            <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
           </ul>
         </div>
         <a class="btn nav-cta" href="/jaro-accounting-rebuild/free-30-min-consultation/">Book FREE 30 Min Consultation</a>
@@ -64,16 +63,21 @@
     </div>
   </div>
 </header>
-<main id="main" tabindex="-1" class="site-main portal-page">
+<main id="main" tabindex="-1" class="site-main portal-page" data-portal-chrome="authed">
   <div class="container">
     <nav class="portal-nav" aria-label="Owner console">
       <a href="/jaro-accounting-rebuild/portal/admin/" aria-current="page">Clients</a>
-      <a href="/jaro-accounting-rebuild/portal/admin/#invitations">Invitations</a>
       <a href="/jaro-accounting-rebuild/portal/admin/#audit">Audit</a>
       <button type="button" id="admin-logout" class="link-button">Sign out</button>
     </nav>
     <h1>Owner console</h1>
     <div id="admin-error" class="error-summary" role="alert" hidden></div>
+
+    <section class="portal-stats" aria-label="At a glance" id="admin-stats">
+      <div class="portal-stat"><p class="portal-stat__number">&hellip;</p><p class="portal-stat__label">Active clients</p></div>
+      <div class="portal-stat"><p class="portal-stat__number">&hellip;</p><p class="portal-stat__label">Pending filings</p></div>
+      <div class="portal-stat"><p class="portal-stat__number">&hellip;</p><p class="portal-stat__label">Outstanding invoices</p></div>
+    </section>
 
     <section class="portal-section" aria-labelledby="clients-heading">
       <h2 id="clients-heading">Clients</h2>
@@ -96,8 +100,10 @@
       <div id="dossier-root"></div>
     </section>
 
-    <section class="portal-section" aria-labelledby="invites-heading" id="invitations">
-      <h2 id="invites-heading">Invitations</h2>
+    <section class="portal-section" aria-labelledby="create-client-heading" id="create-client">
+      <h2 id="create-client-heading">Create client account</h2>
+      <p class="form-hint">Jared sets a temporary password and emails it to the client personally — the portal never sends passwords. The client chooses their own password on first sign-in.</p>
+      <div id="client-created-note" class="notice" role="status" hidden></div>
       <form id="invite-form">
         <div class="form-field">
           <label for="invite-name">Client name</label>
@@ -108,8 +114,10 @@
           <input id="invite-email" type="email" required maxlength="320">
         </div>
         <div class="form-field">
-          <label for="invite-phone">Phone (optional, E.164)</label>
-          <input id="invite-phone" type="tel" placeholder="+16045550101">
+          <label for="invite-phone">Phone (optional)</label>
+          <input id="invite-phone" type="tel" placeholder="+16045550101"
+                 aria-describedby="invite-phone-hint">
+          <p class="form-hint" id="invite-phone-hint">Digits with country code, e.g. +16045550101.</p>
         </div>
         <div class="form-field">
           <label for="invite-temp-password">Temporary password</label>
@@ -120,7 +128,6 @@
         </div>
         <button class="btn" type="submit">Create client account</button>
       </form>
-      <div id="invites-root" role="status"><p>Loading invitations&hellip;</p></div>
     </section>
 
     <section class="portal-section" aria-labelledby="audit-heading" id="audit">
@@ -139,7 +146,7 @@
           <li><a href="/jaro-accounting-rebuild/about-us/">About Us</a></li>
           <li><a href="/jaro-accounting-rebuild/our-services/">Our Services</a></li>
           <li><a href="/jaro-accounting-rebuild/contact-us/">Contact Us</a></li>
-          <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
+          <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">Free 30-Minute Consultation</a></li>
           <li><a href="/jaro-accounting-rebuild/faq/">FAQ</a></li>
         </ul>
       </nav>
@@ -160,6 +167,9 @@
           <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
           <a href="tel:+17782274891">1-(778)-227-4891</a>
         </address>
+        <!-- Hours live here (not only in the header utility lane) so they
+             stay visible on mobile, where the header lane hides them. -->
+        <p class="footer-hours">Mon&ndash;Fri 9&ndash;5 &middot; Sat 10&ndash;3</p>
       </div>
     </div>
     <div class="trust-strip">

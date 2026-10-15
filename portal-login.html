@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Client login — Jaro Accounting</title>
-<meta name="description" content="Sign in to your myJaro client portal. Access by invitation only.">
+<meta name="description" content="Sign in to your myJaro client portal. Jared sets up your account.">
 <link rel="canonical" href="https://jaroaccounting.com/portal/login/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Jaro Accounting">
 <meta property="og:title" content="Client login — Jaro Accounting">
-<meta property="og:description" content="Sign in to your myJaro client portal. Access by invitation only.">
+<meta property="og:description" content="Sign in to your myJaro client portal. Jared sets up your account.">
 <meta property="og:url" content="https://jaroaccounting.com/portal/login/">
 <meta property="og:image" content="https://jaroaccounting.com/assets/hero.webp">
 <meta name="twitter:card" content="summary_large_image">
@@ -56,7 +56,6 @@
             <li><a href="/jaro-accounting-rebuild/about-us/">About Us</a></li>
             <li><a href="/jaro-accounting-rebuild/our-services/">Our Services</a></li>
             <li><a href="/jaro-accounting-rebuild/contact-us/">Contact Us</a></li>
-            <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
           </ul>
         </div>
         <a class="btn nav-cta" href="/jaro-accounting-rebuild/free-30-min-consultation/">Book FREE 30 Min Consultation</a>
@@ -72,7 +71,7 @@
         <h1 id="login-heading">Client sign in</h1>
         <p class="portal-posture">
           Signed out after 15 minutes idle &middot;
-          Access by invitation only
+          Jared sets up your account
         </p>
 
         <div id="login-error" class="error-summary" role="alert" hidden></div>
@@ -117,7 +116,10 @@
                       aria-label="Show password" aria-pressed="false">Show</button>
             </div>
             <p class="field-error" id="new-password-error" hidden></p>
-            <p class="form-hint">At least 12 characters.</p>
+            <ul class="pw-checklist" id="new-password-checklist" aria-label="Password requirements">
+              <li data-check="length">At least 12 characters</li>
+              <li data-check="match">Passwords match</li>
+            </ul>
           </div>
           <div class="form-field">
             <label for="new-password-confirm">Confirm new password</label>
@@ -168,7 +170,7 @@
           <li><a href="/jaro-accounting-rebuild/about-us/">About Us</a></li>
           <li><a href="/jaro-accounting-rebuild/our-services/">Our Services</a></li>
           <li><a href="/jaro-accounting-rebuild/contact-us/">Contact Us</a></li>
-          <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">FREE 30 Min Consultation!</a></li>
+          <li><a href="/jaro-accounting-rebuild/free-30-min-consultation/">Free 30-Minute Consultation</a></li>
           <li><a href="/jaro-accounting-rebuild/faq/">FAQ</a></li>
         </ul>
       </nav>
@@ -189,6 +191,9 @@
           <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
           <a href="tel:+17782274891">1-(778)-227-4891</a>
         </address>
+        <!-- Hours live here (not only in the header utility lane) so they
+             stay visible on mobile, where the header lane hides them. -->
+        <p class="footer-hours">Mon&ndash;Fri 9&ndash;5 &middot; Sat 10&ndash;3</p>
       </div>
     </div>
     <div class="trust-strip">
