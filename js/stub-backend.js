@@ -1510,7 +1510,7 @@
       html += kv(S.lastBookingCode.masked, S.lastBookingCode.code);
     }
     html += "<p style='margin:8px 0 4px'><strong>Deep links</strong></p>";
-    html += "<div><a href='" + STUB_BASE + "/jaro-accounting-rebuild/portal/reset-password/?token=" + DEMO_RESET_TOKEN + "'>Password reset</a></div>";
+    html += "<div><a href='" + STUB_BASE + "/portal/reset-password/?token=" + DEMO_RESET_TOKEN + "'>Password reset</a></div>";
     html += "<p style='margin:10px 0 0'>";
     html += "<button type='button' id='jaro-stub-reset' style='margin-right:8px'>Reset demo data</button>";
     html += "<button type='button' id='jaro-stub-off'>Disable stubs</button></p>";
