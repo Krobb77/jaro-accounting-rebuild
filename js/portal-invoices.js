@@ -67,7 +67,7 @@ async function showDetail(id) {
       <p>Subtotal: ${money(inv.subtotal_cents)} &middot; Tax: ${money(inv.tax_cents)}</p>
       <p><strong>Total due: ${money(inv.total_cents)}</strong></p>
       ${inv.memo ? `<p>Memo: ${esc(inv.memo)}</p>` : ""}
-      <p><a class="btn btn--small" href="/api/v1/portal/invoices/${encodeURIComponent(inv.id)}/pdf">Download PDF</a></p>
+      <p><a class="btn btn--small" href="/jaro-accounting-rebuild/api/v1/portal/invoices/${encodeURIComponent(inv.id)}/pdf">Download PDF</a></p>
     </section>`;
     detailEl.innerHTML = html;
     detailEl.scrollIntoView({ block: "nearest" });

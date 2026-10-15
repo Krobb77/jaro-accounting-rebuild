@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Client login — Jaro Accounting</title>
-<meta name="description" content="Sign in to your myJaro client portal. Two-step verification required. Access by invitation only.">
+<meta name="description" content="Sign in to your myJaro client portal. Access by invitation only.">
 <link rel="canonical" href="https://jaroaccounting.com/portal/login/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Jaro Accounting">
 <meta property="og:title" content="Client login — Jaro Accounting">
-<meta property="og:description" content="Sign in to your myJaro client portal. Two-step verification required. Access by invitation only.">
+<meta property="og:description" content="Sign in to your myJaro client portal. Access by invitation only.">
 <meta property="og:url" content="https://jaroaccounting.com/portal/login/">
 <meta property="og:image" content="https://jaroaccounting.com/assets/hero.webp">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"AccountingService","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"New Westminster","addressRegion":"BC","postalCode":"V3M 4B1","streetAddress":"215 Mowat Street"},"areaServed":"Canada","email":"jared@jaroaccounting.com","founder":{"@type":"Person","jobTitle":"Accountant and tax strategist","name":"Jared Robbins"},"image":"https://jaroaccounting.com/assets/hero.webp","legalName":"1238855 BC LTD","name":"Jaro Accounting","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","closes":"17:00","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday"],"opens":"09:00"},{"@type":"OpeningHoursSpecification","closes":"15:00","dayOfWeek":"Saturday","opens":"10:00"}],"priceRange":"$$","slogan":"Accounting. Tax. Strategy.","telephone":"+1-778-227-4891","url":"https://jaroaccounting.com/"}
+{"@context":"https://schema.org","@type":"AccountingService","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"New Westminster","addressRegion":"BC","postalCode":"[Postal Code]","streetAddress":"[Street Address]"},"areaServed":"Canada","email":"jared@jaroaccounting.com","founder":{"@type":"Person","jobTitle":"Accountant and tax strategist","name":"Jared Robbins"},"image":"https://jaroaccounting.com/assets/hero.webp","legalName":"1238855 BC LTD","name":"Jaro Accounting","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","closes":"17:00","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday"],"opens":"09:00"},{"@type":"OpeningHoursSpecification","closes":"15:00","dayOfWeek":"Saturday","opens":"10:00"}],"priceRange":"$$","slogan":"Accounting. Tax. Strategy.","telephone":"+17782274891","url":"https://jaroaccounting.com/"}
 </script>
 <meta name="theme-color" content="#303030">
 <link rel="icon" href="/jaro-accounting-rebuild/assets/favicon.svg" type="image/svg+xml">
@@ -33,7 +33,7 @@
         <span>Client Login</span>
       </a>
       <span class="utility-lane__spacer" aria-hidden="true"></span>
-      <a class="utility-phone" href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+      <a class="utility-phone" href="tel:+17782274891">1-(778)-227-4891</a>
       <span class="utility-hours">Mon&ndash;Fri 9&ndash;5 &middot; Sat 10&ndash;3</span>
     </div>
   </div>
@@ -71,7 +71,7 @@
         <p class="portal-brand">Jaro Accounting</p>
         <h1 id="login-heading">Client sign in</h1>
         <p class="portal-posture">
-          Two-step verification required &middot; Signed out after 15 minutes idle &middot;
+          Signed out after 15 minutes idle &middot;
           Access by invitation only
         </p>
 
@@ -84,55 +84,74 @@
           <div class="form-field">
             <label for="login-email">Email address</label>
             <input id="login-email" name="email" type="email" autocomplete="username"
-                   required maxlength="320" aria-describedby="login-email-hint">
-            <p class="form-hint" id="login-email-hint">The email address your invitation was sent to.</p>
+                   required maxlength="320" aria-describedby="login-email-hint login-email-error">
+            <p class="form-hint" id="login-email-hint">The email address Jared set up your account with.</p>
+            <p class="field-error" id="login-email-error" hidden></p>
           </div>
           <div class="form-field">
             <label for="login-password">Password</label>
-            <input id="login-password" name="password" type="password"
-                   autocomplete="current-password" required>
+            <div class="password-wrap">
+              <input id="login-password" name="password" type="password"
+                     autocomplete="current-password" required
+                     aria-describedby="login-password-error">
+              <button type="button" id="login-password-toggle" class="password-toggle" hidden
+                      aria-label="Show password" aria-pressed="false">Show</button>
+            </div>
+            <p class="field-error" id="login-password-error" hidden></p>
           </div>
-          <button class="btn" type="submit" id="login-submit">Continue</button>
+          <button class="btn" type="submit" id="login-submit">Sign in</button>
           <p class="form-footnote"><a href="/jaro-accounting-rebuild/portal/reset-password/">Forgot your password?</a></p>
         </form>
 
-        <form id="mfa-form" novalidate hidden>
-          <p>Enter the 6-digit code from your authenticator app.</p>
+        <form id="change-password-form" novalidate hidden>
+          <h2 id="change-password-heading">Choose your own password</h2>
+          <p class="form-hint">Jared set a temporary password to get you started.
+            Choose your own password now — you'll use it every time you sign in.</p>
           <div class="form-field">
-            <label for="mfa-code">Authentication code</label>
-            <input id="mfa-code" name="code" type="text" inputmode="numeric"
-                   autocomplete="one-time-code" maxlength="32" required>
-          </div>
-          <div id="sms-block" hidden>
-            <p class="form-hint">Or <button type="button" id="sms-request" class="link-button">send a code by text message</button> instead.</p>
-            <div class="form-field" id="sms-code-field" hidden>
-              <label for="sms-code">Text message code</label>
-              <input id="sms-code" name="sms_code" type="text" inputmode="numeric" maxlength="6">
+            <label for="new-password">New password</label>
+            <div class="password-wrap">
+              <input id="new-password" name="new_password" type="password"
+                     autocomplete="new-password" required minlength="12" maxlength="256"
+                     aria-describedby="new-password-error">
+              <button type="button" id="new-password-toggle" class="password-toggle" hidden
+                      aria-label="Show password" aria-pressed="false">Show</button>
             </div>
+            <p class="field-error" id="new-password-error" hidden></p>
+            <p class="form-hint">At least 12 characters.</p>
           </div>
-          <button class="btn" type="submit" id="mfa-submit">Verify and sign in</button>
-          <p class="form-footnote"><button type="button" id="mfa-back" class="link-button">Back to email and password</button></p>
+          <div class="form-field">
+            <label for="new-password-confirm">Confirm new password</label>
+            <input id="new-password-confirm" name="new_password_confirm" type="password"
+                   autocomplete="new-password" required
+                   aria-describedby="new-password-confirm-error">
+            <p class="field-error" id="new-password-confirm-error" hidden></p>
+          </div>
+          <button class="btn" type="submit" id="change-password-submit">Set password and continue</button>
         </form>
 
         <details class="portal-help">
           <summary>Need help signing in?</summary>
           <div class="portal-help__body">
-            <h2>What a real Jaro invitation looks like</h2>
-            <p>A genuine invitation email from Jaro Accounting:</p>
+            <h2>First time signing in?</h2>
+            <p>Jared sets up every client account personally and emails you a
+              temporary password. Sign in with that temporary password and
+              you'll be asked to choose your own password right away.</p>
+            <h2>What a real email from Jaro looks like</h2>
+            <p>A genuine message from Jaro Accounting:</p>
             <ul>
               <li>Comes from <strong>jared@jaroaccounting.com</strong>.</li>
-              <li>Addresses you by name and shows your email as your username.</li>
-              <li>Has <strong>one</strong> link: a "Set your password" button pointing to
-                <code>https://jaroaccounting.com/portal/accept</code> — the link expires after 7 days.</li>
+              <li>Addresses you by name.</li>
               <li>Never asks for your password by email or phone. We'll never ask.</li>
             </ul>
-            <p>If an email asks you to sign in anywhere else, or asks for your password,
-              don't click — contact Jared Robbins directly at
+            <p>If an email asks you to sign in anywhere other than
+              <code>https://jaroaccounting.com/portal/login</code>, or asks for
+              your password, don't click — contact Jared Robbins directly at
               <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a>
               or <a href="tel:+17782274891">1-(778)-227-4891</a>.</p>
             <h2>Locked out?</h2>
-            <p>If you've lost access to your authenticator app, contact Jared and he can
-              reset your two-step verification after verifying your identity.</p>
+            <p>If you've lost your password, use the "Forgot your password?"
+              link above — or contact Jared and he can set a new temporary
+              password after verifying your identity.</p>
           </div>
         </details>
       </div>
@@ -165,10 +184,10 @@
         <h2 class="footer-heading">Get In Touch</h2>
         <address>
           Jaro Accounting<br>
-          215 Mowat Street,<br>
-          New Westminster, BC V3M 4B1<br>
+          [Street Address],<br>
+          New Westminster, BC [Postal Code]<br>
           <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
-          <a href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+          <a href="tel:+17782274891">1-(778)-227-4891</a>
         </address>
       </div>
     </div>

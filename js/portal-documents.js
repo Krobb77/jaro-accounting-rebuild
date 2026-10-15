@@ -39,7 +39,7 @@ async function loadDocs() {
       ${(d.byte_size / 1024).toFixed(0)} KB &middot;
       ${esc(vancouverDateTime(d.created_at))} &middot;
       ${d.uploaded_by === "owner" ? "shared by Jared" : "uploaded by you"}</span>
-      <a class="btn btn--small" href="/api/v1/portal/documents/${encodeURIComponent(d.id)}/download">Download</a>
+      <a class="btn btn--small" href="/jaro-accounting-rebuild/api/v1/portal/documents/${encodeURIComponent(d.id)}/download">Download</a>
     </li>`;
   }
   root.innerHTML = html + `</ul>`;

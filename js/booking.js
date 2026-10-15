@@ -639,7 +639,7 @@ async function confirmBooking() {
       headers: { "Idempotency-Key": state.idempotencyKey },
     });
     sessionStorage.setItem(STORAGE.result, JSON.stringify(body));
-    window.location.href = "/jaro-accounting-rebuild/thank-you-for-your-booking/";
+    window.location.href = "/thank-you-for-your-booking/";
   } catch (e) {
     if (e instanceof ApiRequestError && e.code === "slot_taken") {
       // The intent is still pending (confirm didn't consume it): keep

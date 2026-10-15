@@ -14,7 +14,7 @@
 <meta property="og:image" content="https://jaroaccounting.com/assets/hero.webp">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"AccountingService","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"New Westminster","addressRegion":"BC","postalCode":"V3M 4B1","streetAddress":"215 Mowat Street"},"areaServed":"Canada","email":"jared@jaroaccounting.com","founder":{"@type":"Person","jobTitle":"Accountant and tax strategist","name":"Jared Robbins"},"image":"https://jaroaccounting.com/assets/hero.webp","legalName":"1238855 BC LTD","name":"Jaro Accounting","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","closes":"17:00","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday"],"opens":"09:00"},{"@type":"OpeningHoursSpecification","closes":"15:00","dayOfWeek":"Saturday","opens":"10:00"}],"priceRange":"$$","slogan":"Accounting. Tax. Strategy.","telephone":"+1-778-227-4891","url":"https://jaroaccounting.com/"}
+{"@context":"https://schema.org","@type":"AccountingService","address":{"@type":"PostalAddress","addressCountry":"CA","addressLocality":"New Westminster","addressRegion":"BC","postalCode":"[Postal Code]","streetAddress":"[Street Address]"},"areaServed":"Canada","email":"jared@jaroaccounting.com","founder":{"@type":"Person","jobTitle":"Accountant and tax strategist","name":"Jared Robbins"},"image":"https://jaroaccounting.com/assets/hero.webp","legalName":"1238855 BC LTD","name":"Jaro Accounting","openingHoursSpecification":[{"@type":"OpeningHoursSpecification","closes":"17:00","dayOfWeek":["Monday","Tuesday","Wednesday","Thursday","Friday"],"opens":"09:00"},{"@type":"OpeningHoursSpecification","closes":"15:00","dayOfWeek":"Saturday","opens":"10:00"}],"priceRange":"$$","slogan":"Accounting. Tax. Strategy.","telephone":"+17782274891","url":"https://jaroaccounting.com/"}
 </script>
 <meta name="theme-color" content="#303030">
 <link rel="icon" href="/jaro-accounting-rebuild/assets/favicon.svg" type="image/svg+xml">
@@ -33,7 +33,7 @@
         <span>Client Login</span>
       </a>
       <span class="utility-lane__spacer" aria-hidden="true"></span>
-      <a class="utility-phone" href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+      <a class="utility-phone" href="tel:+17782274891">1-(778)-227-4891</a>
       <span class="utility-hours">Mon&ndash;Fri 9&ndash;5 &middot; Sat 10&ndash;3</span>
     </div>
   </div>
@@ -98,36 +98,6 @@
     </div>
   </div>
 
-  <!-- TOTP enrollment. -->
-  <div id="totp-modal" class="modal" role="dialog" aria-modal="true"
-       aria-labelledby="totp-title" hidden>
-    <div class="modal__box">
-      <h2 id="totp-title">Set up two-step verification</h2>
-      <div id="totp-error" class="error-summary" role="alert" hidden></div>
-      <div id="totp-step-key">
-        <p>Scan this into your authenticator app, or enter the key manually:</p>
-        <p class="totp-key"><code id="totp-manual-key"></code></p>
-        <p><a id="totp-uri-link" href="#">Open in authenticator app</a></p>
-        <p>Then enter <strong>two consecutive codes</strong> from the app:</p>
-        <div class="form-field">
-          <label for="totp-code1">First code</label>
-          <input id="totp-code1" inputmode="numeric" maxlength="6" autocomplete="off">
-        </div>
-        <div class="form-field">
-          <label for="totp-code2">Second code (the next one shown)</label>
-          <input id="totp-code2" inputmode="numeric" maxlength="6" autocomplete="off">
-        </div>
-        <button type="button" id="totp-confirm" class="btn">Confirm</button>
-      </div>
-      <div id="totp-step-recovery" hidden>
-        <p><strong>Save these recovery codes somewhere safe.</strong>
-          They are shown once — each works a single time if you lose your authenticator.</p>
-        <ol id="totp-recovery-list" class="recovery-codes"></ol>
-        <label><input type="checkbox" id="totp-recovery-saved"> I have saved my recovery codes</label>
-        <button type="button" id="totp-done" class="btn" disabled>Done</button>
-      </div>
-    </div>
-  </div>
 </main>
 <footer class="site-footer">
   <div class="container">
@@ -155,10 +125,10 @@
         <h2 class="footer-heading">Get In Touch</h2>
         <address>
           Jaro Accounting<br>
-          215 Mowat Street,<br>
-          New Westminster, BC V3M 4B1<br>
+          [Street Address],<br>
+          New Westminster, BC [Postal Code]<br>
           <a href="mailto:jared@jaroaccounting.com">jared@jaroaccounting.com</a><br>
-          <a href="tel:1-(778)-227-4891">1-(778)-227-4891</a>
+          <a href="tel:+17782274891">1-(778)-227-4891</a>
         </address>
       </div>
     </div>
