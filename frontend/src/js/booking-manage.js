@@ -6,13 +6,17 @@
  *
  * Invalid/expired/revoked tokens render the same generic 404 panel, so
  * the page never distinguishes "no such token" from "cancelled" (A5).
+ *
+ * Token sources: the /booking/manage/{token} path (production rewrite)
+ * or the ?token= query parameter (static hosts such as the Pages preview).
  */
 
 import { ApiRequestError, apiFetch, formatSlot } from "./booking-api.js";
 
 const MANAGE_BASE = "/manage"; // apiFetch() prepends /api/v1/booking
 
-const token = window.location.pathname.split("/").filter(Boolean).pop() || "";
+const token = new URLSearchParams(window.location.search).get("token") ||
+  window.location.pathname.split("/").filter(Boolean).pop() || "";
 const root = document.getElementById("manage-root");
 const errorBox = document.getElementById("manage-error");
 
