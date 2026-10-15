@@ -1,14 +1,14 @@
 /* /portal/admin/ — Jared's owner console. Owner role only (403 otherwise). */
 import {
   adminApi, portalApi, ApiRequestError,
-  idempotencyKey, esc, vancouverDateTime,
+  initPortalChrome, idempotencyKey, esc, vancouverDateTime,
 } from "./portal-api.js";
 
 const errorBox = document.getElementById("admin-error");
 const clientsRoot = document.getElementById("clients-root");
+const statsRoot = document.getElementById("admin-stats");
 const dossierSection = document.getElementById("dossier-section");
 const dossierRoot = document.getElementById("dossier-root");
-const invitesRoot = document.getElementById("invites-root");
 const auditRoot = document.getElementById("audit-root");
 
 let currentClientId = null;
@@ -24,24 +24,76 @@ document.getElementById("admin-logout").addEventListener("click", async () => {
   window.location.href = "/portal/login/";
 });
 
+// --- at-a-glance (P20) ---------------------------------------------------------------
+async function loadStats() {
+  try {
+    const res = await adminApi.get("/clients?page=1&per_page=50");
+    const clients = res.items || [];
+    const active = clients.filter((c) => c.status === "active").length;
+    const dossiers = await Promise.all(
+      clients.map((c) => adminApi.get(`/clients/${encodeURIComponent(c.id)}`).catch(() => null))
+    );
+    let pendingFilings = 0, outstanding = 0, outstandingCents = 0;
+    for (const d of dossiers) {
+      if (!d) continue;
+      for (const f of d.filings || []) {
+        if (["collecting", "awaiting_info", "preparing"].indexOf(f.status) !== -1) pendingFilings++;
+      }
+      for (const i of d.invoices || []) {
+        if (i.status === "issued") { outstanding++; outstandingCents += i.total_cents || 0; }
+      }
+    }
+    statsRoot.innerHTML =
+      `<div class="portal-stat"><p class="portal-stat__number">${active}</p><p class="portal-stat__label">Active clients</p></div>` +
+      `<div class="portal-stat"><p class="portal-stat__number">${pendingFilings}</p><p class="portal-stat__label">Pending filings</p></div>` +
+      `<div class="portal-stat"><p class="portal-stat__number">${outstanding}</p>` +
+      `<p class="portal-stat__label">Outstanding invoices${outstanding ? ` &middot; $${(outstandingCents / 100).toFixed(2)}` : ""}</p></div>`;
+  } catch {
+    statsRoot.innerHTML = "";
+  }
+}
+
 // --- clients -------------------------------------------------------------------
+/* P27: client list as rows (name, email, status, action) with status badges. */
+function clientStatusBadge(c) {
+  if (c.must_change_password) {
+    return `<span class="badge badge--needs-password-change">Needs password change</span>`;
+  }
+  if (c.status === "active") return `<span class="badge badge--active">Active</span>`;
+  return `<span class="badge badge--void">${esc(c.status || "unknown")}</span>`;
+}
+
+function clientName(c) {
+  return c.display_name || c.name || c.email;
+}
+
 async function loadClients(search = "") {
   const params = new URLSearchParams({ page: "1", per_page: "50" });
   if (search) params.set("search", search);
   const res = await adminApi.get(`/clients?${params}`);
   const items = res.items || [];
   if (!items.length) {
-    clientsRoot.innerHTML = "<p class=\"portal-empty\">No clients yet. Send an invitation below.</p>";
+    clientsRoot.innerHTML = `<p class="portal-empty">No clients yet. Client accounts you create below will appear here.</p>
+      <p class="portal-empty-action"><button type="button" class="btn btn--small" id="empty-create-client">Create the first client account</button></p>`;
+    document.getElementById("empty-create-client").addEventListener("click", () => {
+      document.getElementById("create-client").scrollIntoView({ block: "start" });
+      document.getElementById("invite-name").focus();
+    });
     return;
   }
-  let html = `<ul class="portal-list">`;
+  let html = `<table class="data-table">
+    <thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Status</th>
+    <th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>`;
   for (const c of items) {
-    html += `<li><strong>${esc(c.display_name || c.email)}</strong>
-      <span class="portal-list__meta">${esc(c.email)} &middot; ${esc(c.status)}</span>
-      <button type="button" class="btn btn--small" data-client="${esc(c.id)}">Open dossier</button>
-    </li>`;
+    html += `<tr>
+      <td><strong>${esc(clientName(c))}</strong></td>
+      <td>${esc(c.email)}</td>
+      <td>${clientStatusBadge(c)}</td>
+      <td><button type="button" class="btn btn--small" data-client="${esc(c.id)}">Open dossier</button></td>
+    </tr>`;
   }
-  clientsRoot.innerHTML = html + `</ul>`;
+  clientsRoot.innerHTML = html + `</tbody></table>`;
   clientsRoot.querySelectorAll("[data-client]").forEach((btn) => {
     btn.addEventListener("click", () => openDossier(btn.dataset.client));
   });
@@ -75,10 +127,10 @@ async function renderDossier() {
   if (!currentClientId) return;
   dossierRoot.innerHTML = "<p>Loading dossier&hellip;</p>";
   const d = await adminApi.get(`/clients/${encodeURIComponent(currentClientId)}`);
-  let html = `<h3>${esc(d.display_name || d.email)} <span class="portal-list__meta">${esc(d.email)}</span></h3>`;
+  let html = `<h3>${esc(d.display_name || d.name || d.email)} <span class="portal-list__meta">${esc(d.email)}</span></h3>`;
   if (currentTab === "overview") {
     html += `<dl class="dossier-facts">
-      <dt>Status</dt><dd>${esc(d.status)}</dd>
+      <dt>Status</dt><dd>${esc(d.status)}${d.must_change_password ? " — must choose own password" : ""}</dd>
       <dt>Phone</dt><dd>${esc(d.phone_e164 || "—")}${d.phone_verified_at ? " (verified)" : ""}</dd>
       <dt>2FA</dt><dd>${d.totp_enrolled_at ? "enrolled" : "not enrolled"}</dd>
       <dt>Terms</dt><dd>${d.terms_accepted_at ? "accepted" : "pending"}</dd>
@@ -89,10 +141,12 @@ async function renderDossier() {
       <textarea id="internal-note" rows="3" maxlength="5000">${esc(d.internal_note || "")}</textarea>
     </div>
     <button type="button" class="btn btn--small" id="save-note">Save note</button>
-    <hr>
-    <h4>Security</h4>
-    <button type="button" class="btn btn--small" id="revoke-all">Revoke all sessions</button>
-    <button type="button" class="btn btn--small" id="reset-password">Set temporary password</button>`;
+    <div class="danger-zone">
+      <h4>Security</h4>
+      <p class="form-hint">These sign the client out everywhere and are audited. The temporary password is never emailed by the portal — you send it yourself.</p>
+      <button type="button" class="btn btn--small" id="revoke-all">Revoke all sessions</button>
+      <button type="button" class="btn btn--small btn--danger" id="reset-password">Set temporary password</button>
+    </div>`;
   } else if (currentTab === "documents") {
     html += `<ul class="portal-list">` + (d.documents || []).map((doc) =>
       `<li><strong>${esc(doc.original_filename)}</strong>
@@ -271,39 +325,16 @@ function wireDossier() {
   });
 }
 
-// --- invitations -------------------------------------------------------------------
-async function loadInvites() {
-  const res = await adminApi.get("/invitations?page=1&per_page=25");
-  const items = res.items || [];
-  if (!items.length) {
-    invitesRoot.innerHTML = "<p class=\"portal-empty\">No invitations yet.</p>";
-    return;
-  }
-  let html = `<ul class="portal-list">`;
-  for (const inv of items) {
-    html += `<li><strong>${esc(inv.client_name)}</strong>
-      <span class="portal-list__meta">${esc(inv.email)} &middot; ${esc(inv.status)} &middot; expires ${esc(vancouverDateTime(inv.expires_at))}</span>
-      ${(inv.status === "created" || inv.status === "emailed") ? `
-      <button type="button" class="btn btn--small" data-revoke="${esc(inv.id)}">Revoke</button>` : ""}
-    </li>`;
-  }
-  invitesRoot.innerHTML = html + `</ul>`;
-  invitesRoot.querySelectorAll("[data-revoke]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      if (!confirm("Revoke this invitation?")) return;
-      try {
-        await adminApi.post(`/invitations/${encodeURIComponent(btn.dataset.revoke)}/revoke`, {
-          json: {}, headers: { "Idempotency-Key": idempotencyKey() },
-        });
-        await loadInvites();
-      } catch (err) { showError(err.message); }
-    });
-  });
-}
-
+// --- create client account -----------------------------------------------------------
+// Direct provisioning (no invitation emails): Jared sets a temporary password
+// and emails it to the client personally. POST /invitations is the product's
+// direct-provisioning endpoint — the invitation row is only the creation
+// record / audit trail, marked accepted immediately.
 document.getElementById("invite-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   errorBox.hidden = true;
+  const createdNote = document.getElementById("client-created-note");
+  createdNote.hidden = true;
   const body = {
     client_name: document.getElementById("invite-name").value.trim(),
     email: document.getElementById("invite-email").value.trim(),
@@ -319,7 +350,10 @@ document.getElementById("invite-form").addEventListener("submit", async (e) => {
   try {
     await adminApi.post("/invitations", { json: body, headers: { "Idempotency-Key": idempotencyKey() } });
     e.target.reset();
-    await loadInvites();
+    createdNote.hidden = false;
+    createdNote.textContent = `Account created for ${body.client_name} (${body.email}). Email them the temporary password yourself — they'll choose their own on first sign-in.`;
+    await loadClients();
+    await loadStats();
   } catch (err) { showError(err.message); }
 });
 
@@ -335,9 +369,10 @@ async function loadAudit() {
 
 // --- init ----------------------------------------------------------------------------
 (async function init() {
+  initPortalChrome();
   try {
+    await loadStats();
     await loadClients();
-    await loadInvites();
     await loadAudit();
   } catch (err) {
     if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {

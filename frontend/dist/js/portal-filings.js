@@ -1,7 +1,7 @@
 /* /portal/filings/ — filing list + five-step timeline (read-only). */
 import {
   portalApi, ApiRequestError, startSessionWatch, requireSession,
-  esc, vancouverDateTime,
+  initPortalChrome, esc, vancouverDateTime,
 } from "./portal-api.js";
 
 const root = document.getElementById("filings-root");
@@ -49,7 +49,10 @@ async function loadFilings() {
     html += `<section class="portal-card-mini" aria-label="${esc(f.kind_label)} ${esc(f.tax_year)}">
       <h2>${esc(f.kind_label)} — ${esc(f.tax_year)}</h2>
       <p>Status: <strong>${esc(STATUS_LABELS[f.status] || f.status)}</strong></p>
-      ${f.note ? `<p class="filing-note">From Jared: ${esc(f.note)}</p>` : ""}
+      ${f.note ? `<aside class="portal-callout" aria-label="Note from Jared">
+        <p><strong>From Jared:</strong> ${esc(f.note)}</p>
+        <p><a href="/portal/documents/">Go to Documents</a></p>
+      </aside>` : ""}
       <ol class="timeline">`;
     for (const status of STATUS_ORDER) {
       const isCurrent = status === f.status;
@@ -66,6 +69,7 @@ async function loadFilings() {
 }
 
 (async function init() {
+  initPortalChrome();
   await requireSession();
   startSessionWatch({ bannerEl: banner, extendBtn });
   try {

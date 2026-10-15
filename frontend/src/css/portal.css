@@ -315,3 +315,318 @@
     columns: 1;
   }
 }
+
+/* === UX-fix pass (2026-10-15): P15, P17–P27, C1 follow-ups =====================
+   portal.css now loads (C1) — these are the portal component styles. */
+
+/* --- P17: calm pristine forms ---------------------------------------------------
+   components.css sets .field-error{display:flex}, which defeats the hidden
+   attribute and leaks the "!" icon onto untouched fields. Restore it: the
+   icon/message only ever render when the element is unhidden, and the JS
+   unhides it only when setting a non-empty message. */
+.field-error[hidden] {
+  display: none;
+}
+
+/* Same hidden-attribute defeat: .session-banner declares display:flex, which
+   overrides the UA [hidden]{display:none} — the "expiring" banner would
+   otherwise show permanently, even on a fresh session. */
+.session-banner[hidden] {
+  display: none;
+}
+
+/* --- P19: authenticated chrome ---------------------------------------------------
+   Every page is built with the marketing .site-header; inside the logged-in
+   portal (main[data-portal-chrome="authed"]) it is hidden so signed-in
+   clients never see prospect CTAs. Pre-login pages (login, reset-password)
+   keep the header. */
+body:has(main[data-portal-chrome="authed"]) .site-header {
+  display: none;
+}
+
+/* Quiet session indicator inside the portal nav. */
+.portal-nav__who {
+  margin-left: auto;
+  color: var(--muted, #6b675e);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 22rem;
+}
+.portal-nav__who + .link-button {
+  margin-left: 0.5rem;
+}
+
+/* Active-section state: color + underline marker, not color alone. */
+.portal-nav a[aria-current="page"] {
+  text-decoration: underline;
+  text-underline-offset: 0.3rem;
+  text-decoration-thickness: 2px;
+}
+
+/* --- P22: quiet row actions -------------------------------------------------------
+   .btn--small never had a definition (dead class), so row actions rendered
+   as full red buttons — the wall of red. Redefine it as a subtle action;
+   the strong red .btn stays reserved for each page's single primary action. */
+.btn--small {
+  --btn-bg: transparent;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand, #cd2220);
+  background-color: transparent;
+  border: 1px solid var(--border, #e3e0d8);
+  border-radius: 999px;
+  box-shadow: none;
+  transform: none;
+  text-decoration: none;
+}
+.btn--small:hover {
+  background-color: var(--surface-alt, #f7f5f0);
+  color: var(--brand, #cd2220);
+  transform: none;
+  box-shadow: none;
+}
+.btn--small:active {
+  transform: none;
+  box-shadow: none;
+}
+
+/* --- P15: destructive actions, visually distinct and last ------------------------- */
+.btn--small.btn--danger {
+  color: var(--brand, #cd2220);
+  border-color: var(--brand, #cd2220);
+}
+.btn--small.btn--danger:hover {
+  background-color: color-mix(in srgb, var(--brand, #cd2220) 8%, transparent);
+  color: var(--brand, #cd2220);
+}
+.danger-zone {
+  border-top: 1px solid var(--border, #e3e0d8);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+}
+.danger-zone .btn--small {
+  margin-right: 0.5rem;
+}
+
+/* --- P18: key-facts summary strip -------------------------------------------------- */
+.portal-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.portal-fact {
+  border: 1px solid var(--border, #e3e0d8);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  background: var(--surface, #fff);
+}
+.portal-fact__label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #6b675e);
+  margin: 0 0 0.35rem;
+}
+.portal-fact__value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+.portal-fact__sub {
+  font-size: 0.85rem;
+  color: var(--muted, #6b675e);
+  margin: 0.25rem 0 0;
+}
+
+/* --- P20: owner at-a-glance row ----------------------------------------------------- */
+.portal-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 0.5rem;
+}
+.portal-stat {
+  border: 1px solid var(--border, #e3e0d8);
+  border-left: 4px solid var(--brand, #cd2220);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  background: var(--surface, #fff);
+}
+.portal-stat__number {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  margin: 0;
+}
+.portal-stat__label {
+  font-size: 0.85rem;
+  color: var(--muted, #6b675e);
+  margin: 0.2rem 0 0;
+}
+
+/* --- P25: filing timeline — done / current / upcoming -------------------------------- */
+.timeline__step--done {
+  color: var(--muted, #6b675e);
+}
+.timeline__step--done .timeline__label::before {
+  content: "\2713\00a0"; /* ✓ + space */
+  color: #2e7d32;
+  font-weight: 700;
+}
+.timeline__step--current {
+  color: var(--ink, #303030);
+  font-weight: 700;
+  background: var(--surface-alt, #f7f5f0);
+  border-radius: 6px;
+  padding-left: 0.6rem;
+  padding-right: 0.6rem;
+  margin-left: -0.6rem;
+  margin-right: -0.6rem;
+}
+.timeline__step--current .timeline__label::before {
+  content: "\25cf\00a0"; /* ● + space */
+  color: var(--brand, #cd2220);
+}
+.timeline__label {
+  flex: 1 1 auto;
+}
+.timeline__time {
+  font-size: 0.85rem;
+  color: var(--muted, #6b675e);
+  font-weight: 400;
+}
+
+/* --- P26: actionable note callout ---------------------------------------------------- */
+.portal-callout {
+  border: 1px solid var(--border, #e3e0d8);
+  border-left: 4px solid var(--brand, #cd2220);
+  border-radius: 0 8px 8px 0;
+  background: var(--surface-alt, #f7f5f0);
+  padding: 0.9rem 1.1rem;
+  margin: 1rem 0;
+}
+.portal-callout p {
+  margin: 0 0 0.5rem;
+}
+.portal-callout p:last-child {
+  margin-bottom: 0;
+}
+
+/* --- P27: data tables (invoices, client rows) ------------------------------------------
+   Financial data in aligned rows: numbers right-aligned, status badges. */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--border, #e3e0d8);
+  vertical-align: middle;
+}
+.data-table th {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted, #6b675e);
+}
+.data-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.invoice-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge--issued {
+  background: #fff7e6;
+  border: 1px solid #b8860b;
+  color: #7a5c00;
+}
+.badge--paid {
+  background: #eef6ee;
+  border: 1px solid #2e7d32;
+  color: #1b5e20;
+}
+.badge--overdue {
+  background: #fdecea;
+  border: 1px solid var(--brand, #cd2220);
+  color: var(--brand, #cd2220);
+}
+.badge--void {
+  background: var(--surface-alt, #f7f5f0);
+  border: 1px solid var(--border, #e3e0d8);
+  color: var(--muted, #6b675e);
+}
+.badge--active {
+  background: #eef6ee;
+  border: 1px solid #2e7d32;
+  color: #1b5e20;
+}
+.badge--needs-password-change {
+  background: #fff7e6;
+  border: 1px solid #b8860b;
+  color: #7a5c00;
+}
+
+/* --- password checklist (forced-change progressive guidance) ---------------------------
+   Neutral pending state — never red before interaction (P17). */
+.pw-checklist {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--muted, #6b675e);
+}
+.pw-checklist li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  margin: 0.2rem 0;
+}
+.pw-checklist li::before {
+  content: "\25cb"; /* ○ pending */
+  flex: none;
+}
+.pw-checklist li[data-met="true"] {
+  color: var(--ink, #303030);
+}
+.pw-checklist li[data-met="true"]::before {
+  content: "\2713"; /* ✓ */
+  color: #2e7d32;
+  font-weight: 700;
+}
+
+/* --- consistent form control widths (audit: email rendered ~2x password) ---------------- */
+.portal-page .form-field input:not([type="checkbox"]):not([type="radio"]),
+.portal-page .form-field select,
+.portal-page .form-field textarea {
+  width: 100%;
+  max-width: 26rem;
+}
+.password-wrap {
+  max-width: 26rem;
+}
+
+/* --- empty states: explain + next action ------------------------------------------------- */
+.portal-empty + .portal-empty-action {
+  margin-top: 0.75rem;
+}

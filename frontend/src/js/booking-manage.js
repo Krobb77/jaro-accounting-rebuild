@@ -71,7 +71,7 @@ function renderBooking() {
     ${cutoffLine}
     <div class="bw-manage-actions">
       ${canReschedule ? `<button type="button" class="btn" id="m-reschedule-toggle">Reschedule</button>` : ""}
-      ${canCancel ? `<button type="button" class="btn btn-ghost" id="m-cancel-toggle">Cancel booking</button>` : ""}
+      ${canCancel ? `<button type="button" class="btn btn-danger-quiet" id="m-cancel-toggle">Cancel booking</button>` : ""}
     </div>
     <div id="m-reschedule-panel" hidden>
       <h2 tabindex="-1" id="m-reschedule-title">Pick a new time</h2>
@@ -93,12 +93,31 @@ function renderBooking() {
       <label class="form-field">Reason for cancelling (optional)
         <textarea id="m-cancel-reason" rows="3" maxlength="500"></textarea>
       </label>
-      <button type="button" class="btn btn-danger" id="m-cancel-submit">Cancel booking</button>
+      <div id="m-cancel-ask">
+        <button type="button" class="btn btn-danger-quiet" id="m-cancel-ask-submit">Cancel booking</button>
+      </div>
+      <div id="m-cancel-confirm" class="bw-confirm-inline" hidden>
+        <p class="microcopy"><strong>Cancel this booking for good?</strong> The slot will be released.</p>
+        <button type="button" class="btn btn-danger-quiet" id="m-cancel-submit">Yes, cancel it</button>
+        <button type="button" class="linklike" id="m-cancel-keep">Keep my booking</button>
+      </div>
     </div>`;
   const rt = document.getElementById("m-reschedule-toggle");
   if (rt) rt.onclick = () => togglePanel("reschedule");
   const ct = document.getElementById("m-cancel-toggle");
   if (ct) ct.onclick = () => togglePanel("cancel");
+  // P15: firing requires an explicit inline confirmation.
+  document.getElementById("m-cancel-ask-submit").onclick = () => {
+    document.getElementById("m-cancel-ask").hidden = true;
+    const c = document.getElementById("m-cancel-confirm");
+    c.hidden = false;
+    const yes = document.getElementById("m-cancel-submit");
+    if (yes) yes.focus();
+  };
+  document.getElementById("m-cancel-keep").onclick = () => {
+    document.getElementById("m-cancel-confirm").hidden = true;
+    document.getElementById("m-cancel-ask").hidden = false;
+  };
 }
 
 function togglePanel(which) {

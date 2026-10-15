@@ -234,7 +234,10 @@ def _booking_count(db_path: str, status: str = "confirmed") -> int:
 
 
 def _confirm_timezone(page) -> None:
-    """Accept the timezone-first modal (fresh context → no stored zone)."""
+    """Open the timezone prompt (PX3: nothing auto-opens on arrival —
+    the visitor must choose) and confirm the timezone-first dialog."""
+    page.wait_for_selector("#bw-tz-prompt:not([hidden])", timeout=10000)
+    page.click("#bw-tz-open")
     page.wait_for_selector("#bw-tz-dialog[open]", timeout=10000)
     page.select_option("#bw-tz-country", "Canada")
     page.select_option("#bw-tz-select", "America/Vancouver")
@@ -242,14 +245,17 @@ def _confirm_timezone(page) -> None:
     page.wait_for_selector("#bw-step-calendar:not([hidden])", timeout=15000)
 
 
-def _pick_first_available_day_and_slot(page, base: str):
-    """Drive calendar → slots → interstitial → Continue. Returns the
-    chosen slot's aria-label for later assertions."""
+def _pick_first_available_day(page):
+    """Drive calendar → slots step only (stops before the slot click)."""
     page.wait_for_selector(
         "#bw-calendar-grid .bw-day[data-date]:not(:disabled)", timeout=15000
     )
     page.click("#bw-calendar-grid .bw-day[data-date]:not(:disabled)")
     page.wait_for_selector("#bw-slots-list .bw-slot", timeout=10000)
+
+
+def _continue_to_form(page):
+    """From the slots step: pick the first slot → interstitial → Continue."""
     slot = page.locator("#bw-slots-list .bw-slot").first
     aria = slot.get_attribute("aria-label")
     slot.click()
@@ -258,6 +264,13 @@ def _pick_first_available_day_and_slot(page, base: str):
     page.click("#bw-slot-dialog-continue")
     page.wait_for_selector("#bw-step-form:not([hidden])", timeout=5000)
     return aria
+
+
+def _pick_first_available_day_and_slot(page, base: str):
+    """Drive calendar → slots → interstitial → Continue. Returns the
+    chosen slot's aria-label for later assertions."""
+    _pick_first_available_day(page)
+    return _continue_to_form(page)
 
 
 def _fill_form(page, *, name="Playwright Booker", email, phone="7785550100"):
@@ -286,14 +299,92 @@ def _verify_code(page, db_path: str, email: str) -> None:
 # Journeys
 # ----------------------------------------------------------------------
 
+def test_timezone_prompt_dismissible_and_calendar_below_header(live_server, browser):
+    """PX3: nothing auto-opens on arrival — the page stays readable with
+    a visible timezone affordance, and the dialog is dismissible (x /
+    ESC). PX2: after tz submit, the calendar heading lands below the
+    sticky header. P12/P13: step indicator marks step 1; legend renders."""
+    base, _db_path, _app = live_server
+    page = browser.new_page(viewport={"width": 1280, "height": 800})
+    try:
+        page.goto(f"{base}{CONSULT}")
+        # PX3: no modal on arrival; prompt + page content visible.
+        page.wait_for_selector("#bw-tz-prompt:not([hidden])", timeout=10000)
+        assert not page.evaluate("() => document.getElementById('bw-tz-dialog').open")
+        assert page.is_visible("#consult-heading")
+        assert page.is_visible("#bw-tz-open")
+
+        # PX3: opening the dialog and hitting ESC closes it without a
+        # choice; the page behind stays readable.
+        page.click("#bw-tz-open")
+        page.wait_for_selector("#bw-tz-dialog[open]", timeout=10000)
+        assert page.is_visible("#bw-tz-close")
+        page.keyboard.press("Escape")
+        page.wait_for_function(
+            "() => !document.getElementById('bw-tz-dialog').open", timeout=5000
+        )
+        assert page.is_visible("#bw-tz-prompt")
+        assert not page.evaluate(
+            "() => document.getElementById('bw-step-calendar').hidden === false"
+        )
+
+        # Confirm the zone, then the calendar reveals below the header.
+        page.click("#bw-tz-open")
+        page.wait_for_selector("#bw-tz-dialog[open]", timeout=10000)
+        page.select_option("#bw-tz-country", "Canada")
+        page.select_option("#bw-tz-select", "America/Vancouver")
+        page.click("#bw-tz-form button[type=submit]")
+        page.wait_for_selector("#bw-step-calendar:not([hidden])", timeout=15000)
+        page.wait_for_selector("#bw-calendar-grid .bw-day[data-date]", timeout=15000)
+        page.wait_for_timeout(900)  # let the smooth scroll settle
+        heading_top = page.evaluate(
+            "() => document.getElementById('bw-calendar-title').getBoundingClientRect().top"
+        )
+        header_bottom = page.evaluate(
+            "() => document.querySelector('.site-header').getBoundingClientRect().bottom"
+        )
+        assert heading_top >= header_bottom - 1, (
+            f"calendar heading ({heading_top}px) is under the sticky header "
+            f"(bottom edge {header_bottom}px)"
+        )
+
+        # P12: step indicator visible, step 1 current.
+        assert page.is_visible("#bw-steps")
+        assert page.get_attribute(
+            '#bw-steps li[data-step="calendar"]', "aria-current"
+        ) == "step"
+        assert (
+            page.get_attribute('#bw-steps li[data-step="slots"]', "aria-current")
+            is None
+        )
+
+        # P13: legend labels both day styles.
+        legend = page.inner_text(".bw-legend")
+        assert "Available" in legend and "Unavailable" in legend
+    finally:
+        page.close()
+
+
 def test_booking_journey_desktop(live_server, browser):
     base, db_path, _app = live_server
     page = browser.new_page(viewport={"width": 1280, "height": 800})
     try:
         page.goto(f"{base}{CONSULT}")
         _confirm_timezone(page)
-        _pick_first_available_day_and_slot(page, base)
+        _pick_first_available_day(page)
+        # P12: the step indicator tracks progress.
+        assert page.get_attribute(
+            '#bw-steps li[data-step="slots"]', "aria-current"
+        ) == "step"
+        assert (
+            page.get_attribute('#bw-steps li[data-step="calendar"]', "aria-current")
+            is None
+        )
+        _continue_to_form(page)
         _fill_form(page, email="pw.journey@example.com")
+        assert page.get_attribute(
+            '#bw-steps li[data-step="form"]', "aria-current"
+        ) == "step"
         _verify_code(page, db_path, "pw.journey@example.com")
 
         # Review shows the masked details; Change links are present.
@@ -600,6 +691,9 @@ def test_manage_page_reschedule_and_cancel(live_server, browser):
         page.wait_for_selector("#m-cancel-toggle", timeout=10000)
         page.click("#m-cancel-toggle")
         page.fill("#m-cancel-reason", "Testing the cancel flow.")
+        # P15: the cancel button opens an inline confirmation first.
+        page.click("#m-cancel-ask-submit")
+        page.wait_for_selector("#m-cancel-confirm:not([hidden])", timeout=5000)
         page.click("#m-cancel-submit")
         page.wait_for_selector("#manage-root .notice-box", timeout=10000)
         assert "cancelled" in page.inner_text("#manage-root").lower()

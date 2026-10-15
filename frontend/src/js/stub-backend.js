@@ -171,12 +171,11 @@
     password: "demo-owner-1",
     status: "active",
   };
-  var DEMO_INVITE_TOKEN = "demo-invite-token-1234567890abcdef";
   var DEMO_RESET_TOKEN = "demo-reset-token-1234567890abcdef";
 
   function seedState() {
     return {
-      v: 1,
+      v: 2,
       // booking
       intents: {},          // intent_id -> intent
       bookings: {},         // booking_id -> booking
@@ -222,30 +221,41 @@
           subtotal_cents: 32000, tax_cents: 1600, total_cents: 33600 },
       ],
       invoiceSeq: 43,
-      // admin
+      // admin — direct provisioning (no invitation emails): Jared creates the
+      // account with a temporary password and emails it personally. Client
+      // rows carry must_change_password until the client chooses their own.
       clients: [
         { id: DEMO_CLIENT.id, display_name: DEMO_CLIENT.display_name, email: DEMO_CLIENT.email, status: "active",
+          must_change_password: false,
           phone_e164: DEMO_CLIENT.phone_e164, phone_verified_at: "2026-03-01T12:00:00Z",
           totp_enrolled_at: null, terms_accepted_at: null, last_login_at: "2026-10-12T18:22:00Z",
           internal_note: "Prefers email over phone. T4A still outstanding for 2025 T1." },
         { id: "client_ben_okafor", display_name: "Ben Okafor", email: "ben.okafor@example.com", status: "active",
+          must_change_password: false,
           phone_e164: "+17785550192", phone_verified_at: "2026-05-11T12:00:00Z",
           totp_enrolled_at: "2026-05-12T09:00:00Z", terms_accepted_at: "2026-05-11T12:05:00Z",
           last_login_at: "2026-10-10T14:02:00Z", internal_note: "Corporate T2 + GST. Year-end is Dec 31." },
-        { id: "client_priya_nair", display_name: "Priya Nair", email: "priya.nair@example.com", status: "invited",
+        { id: "client_priya_nair", display_name: "Priya Nair", email: "priya.nair@example.com", status: "active",
+          must_change_password: true, temp_password: "demo-temp-priya-1",
           phone_e164: null, phone_verified_at: null, totp_enrolled_at: null,
-          terms_accepted_at: null, last_login_at: null, internal_note: "Invited Oct 9 — hasn't set a password yet." },
+          terms_accepted_at: null, last_login_at: null, internal_note: "Account created Oct 9 — hasn't chosen a password yet." },
+        { id: "client_tom_becker", display_name: "Tom Becker", email: "tom.becker@example.com", status: "active",
+          must_change_password: true, temp_password: "demo-temp-tom-1",
+          phone_e164: null, phone_verified_at: null, totp_enrolled_at: null,
+          terms_accepted_at: null, last_login_at: null, internal_note: "Account created Oct 14 — hasn't chosen a password yet." },
       ],
+      // Invitation rows are kept only as the creation record / audit trail
+      // (all "accepted" immediately) — there is no email accept flow.
       invitations: [
-        { id: "inv_0007", client_name: "Priya Nair", email: "priya.nair@example.com", status: "emailed", expires_at: daysFromNow(4), created_at: daysFromNow(-3) },
-        { id: "inv_0006", client_name: "Tom Becker", email: "tom.becker@example.com", status: "created", expires_at: daysFromNow(6), created_at: daysFromNow(-1) },
+        { id: "inv_0007", client_name: "Priya Nair", email: "priya.nair@example.com", status: "accepted", created_at: daysFromNow(-6) },
+        { id: "inv_0006", client_name: "Tom Becker", email: "tom.becker@example.com", status: "accepted", created_at: daysFromNow(-1) },
       ],
       inviteSeq: 8,
       audit: [
         { id: uid("audit"), occurred_at: daysFromNow(-0.2), action: "invoice.issued", actor: "Jared Robbins", entity_type: "invoice" },
         { id: uid("audit"), occurred_at: daysFromNow(-1.1), action: "document.shared", actor: "Jared Robbins", entity_type: "document" },
         { id: uid("audit"), occurred_at: daysFromNow(-2.4), action: "filing.status_changed", actor: "Jared Robbins", entity_type: "filing" },
-        { id: uid("audit"), occurred_at: daysFromNow(-3.0), action: "invitation.emailed", actor: "Jared Robbins", entity_type: "invitation" },
+        { id: uid("audit"), occurred_at: daysFromNow(-3.0), action: "invite.created", actor: "Jared Robbins", entity_type: "portal_invitation" },
       ],
       // transient (not persisted meaningfully, but kept for the session)
       challenges: {},       // challenge_id -> {email, code, sms_code}
@@ -259,7 +269,7 @@
       var raw = localStorage.getItem(STATE_KEY);
       if (raw) {
         var s = JSON.parse(raw);
-        if (s && s.v === 1) return s;
+        if (s && s.v === 2) return s;
       }
     } catch (e) {}
     return seedState();
@@ -824,6 +834,17 @@
       if (v.email === DEMO_CLIENT.email && v.password === DEMO_CLIENT.password) { acct = DEMO_CLIENT; role = "client"; }
       else if (v.email === DEMO_TEMP_CLIENT.email && v.password === DEMO_TEMP_CLIENT.password) { acct = DEMO_TEMP_CLIENT; role = "client"; }
       else if (v.email === DEMO_OWNER.email && v.password === DEMO_OWNER.password) { acct = DEMO_OWNER; role = "owner"; }
+      else {
+        // Direct-provisioned demo clients sign in with the temporary password
+        // Jared set (stored on the client row; cleared on first change).
+        var pc = S.clients.find(function (c) {
+          return c.email === v.email && c.temp_password && c.temp_password === v.password;
+        });
+        if (pc) {
+          acct = { id: pc.id, display_name: pc.display_name, email: pc.email, must_change_password: !!pc.must_change_password };
+          role = "client";
+        }
+      }
       if (!acct) {
         // Anti-enumeration: identical 401 either way.
         return errResponse("invalid_credentials", "That email and password didn't match our records.", 401);
@@ -831,7 +852,8 @@
       // Password-only login (no authenticator): session immediately, with a
       // forced password-change step for temporary-password onboarding.
       var termsAccepted = role === "owner" ? true : !!S.clientTermsAccepted;
-      var mustChange = !!acct.must_change_password && !S.tempPasswordChanged;
+      var mustChange = !!acct.must_change_password;
+      if (acct.id === DEMO_TEMP_CLIENT.id) mustChange = mustChange && !S.tempPasswordChanged;
       S.session = {
         email: acct.email, role: role, display_name: acct.display_name,
         expires_at: Date.now() + SESSION_TTL_MS,
@@ -853,6 +875,11 @@
         return errResponse("validation_failed", "Please choose a stronger password.", 422,
           [{ field: "new_password", message: "Use at least 12 characters." }]);
       S.tempPasswordChanged = true;
+      var changedClient = S.clients.find(function (c) { return S.session && c.email === S.session.email; });
+      if (changedClient) {
+        changedClient.must_change_password = false;
+        delete changedClient.temp_password; // single-use, like the product
+      }
       if (S.session) S.session.must_change_password = false;
       var termsOk = S.session.role === "owner" ? true : !!S.clientTermsAccepted;
       save(); badgeRefresh();
@@ -1063,7 +1090,7 @@
         .filter(function (c) {
           return !search || (c.display_name + " " + c.email).toLowerCase().indexOf(search) !== -1;
         })
-        .map(function (c) { return { id: c.id, display_name: c.display_name, email: c.email, status: c.status }; });
+        .map(function (c) { return { id: c.id, display_name: c.display_name, email: c.email, status: c.status, must_change_password: !!c.must_change_password }; });
       return jsonResponse({ items: items, page: 1, per_page: 50, total: items.length });
     }
 
@@ -1232,6 +1259,9 @@
     }
 
     if (p0 === "invitations" && parts.length === 1 && method === "POST") {
+      // Direct provisioning (matches the product): the client account is
+      // created immediately with the temporary password; the invitation row
+      // is only the creation record, accepted at once. No email is sent.
       var nv = body || {};
       if (!nv.client_name || !emailValid(nv.email || "")) {
         return errResponse("validation_failed", "Please fix the following:", 422, [
@@ -1242,15 +1272,30 @@
       if (!nv.temp_password || nv.temp_password.length < 12)
         return errResponse("validation_failed", "Please fix the following:", 422,
           [{ field: "temp_password", message: "Use at least 12 characters." }]);
+      var emailTaken = S.clients.some(function (c) { return c.email === (nv.email || "").trim(); });
+      if (emailTaken)
+        return errResponse("client_exists", "A client with that email already exists.", 409);
+      var newClient = {
+        id: uid("client"),
+        display_name: nv.client_name.trim(),
+        email: (nv.email || "").trim(),
+        status: "active",
+        must_change_password: true,
+        temp_password: nv.temp_password, // demo only: lets the new client sign in
+        phone_e164: (nv.phone_e164 || "").trim() || null,
+        phone_verified_at: null, totp_enrolled_at: null,
+        terms_accepted_at: null, last_login_at: null, internal_note: "",
+      };
+      S.clients.unshift(newClient);
       var invite = {
         id: "inv_" + String(S.inviteSeq++).padStart(4, "0"),
-        client_name: nv.client_name, email: nv.email,
-        status: "accepted", expires_at: daysFromNow(7), created_at: nowISO(),
+        client_name: newClient.display_name, email: newClient.email,
+        status: "accepted", created_at: nowISO(),
       };
       S.invitations.unshift(invite);
-      auditAction("invitation.created", "invitation");
+      auditAction("invite.created", "portal_invitation");
       save();
-      return jsonResponse({ id: invite.id, status: "accepted" }, 201);
+      return jsonResponse({ id: invite.id, status: "accepted", user_id: newClient.id }, 201);
     }
 
     if (p0 === "invitations" && parts[2] === "revoke" && method === "POST") {

@@ -118,6 +118,9 @@ function wireContactForm(form) {
   }
 
   function fieldError(input, key, message) {
+    // PX1: never render the "!" icon (or any error chrome) without an actual
+    // message — pristine/empty error slots stay invisible.
+    if (!message || !String(message).trim()) return;
     const errId = `contact-${key}-error`;
     let err = document.getElementById(errId);
     if (!err) {

@@ -1,6 +1,6 @@
 ---
 title: Client login — Jaro Accounting
-description: Sign in to your [[portal_name]] client portal. Access by invitation only.
+description: Sign in to your [[portal_name]] client portal. Jared sets up your account.
 path: /portal/login/
 nav: none
 sitemap: false
@@ -14,7 +14,7 @@ scripts: portal-login.js
         <h1 id="login-heading">Client sign in</h1>
         <p class="portal-posture">
           Signed out after 15 minutes idle &middot;
-          Access by invitation only
+          Jared sets up your account
         </p>
 
         <div id="login-error" class="error-summary" role="alert" hidden></div>
@@ -59,7 +59,10 @@ scripts: portal-login.js
                       aria-label="Show password" aria-pressed="false">Show</button>
             </div>
             <p class="field-error" id="new-password-error" hidden></p>
-            <p class="form-hint">At least 12 characters.</p>
+            <ul class="pw-checklist" id="new-password-checklist" aria-label="Password requirements">
+              <li data-check="length">At least 12 characters</li>
+              <li data-check="match">Passwords match</li>
+            </ul>
           </div>
           <div class="form-field">
             <label for="new-password-confirm">Confirm new password</label>

@@ -180,6 +180,36 @@ export function esc(s) {
   }[c]));
 }
 
+/**
+ * Authenticated chrome (P19): a quiet "Signed in as …" indicator plus the
+ * owner-only Admin link, inside the portal nav. Idempotent; safe to call
+ * without a live session (the page's own guard redirects on 401).
+ */
+export async function initPortalChrome() {
+  const nav = document.querySelector(".portal-nav");
+  if (!nav || nav.dataset.chromeInit) return;
+  nav.dataset.chromeInit = "1";
+  let session = null;
+  try {
+    session = await pollSession();
+  } catch {
+    return;
+  }
+  if (!session) return;
+  if (session.role === "owner" && !nav.querySelector('a[href="/portal/admin/"]')) {
+    const adminLink = document.createElement("a");
+    adminLink.href = "/portal/admin/";
+    adminLink.textContent = "Admin";
+    const signout = nav.querySelector(".link-button");
+    nav.insertBefore(adminLink, signout);
+  }
+  const who = document.createElement("span");
+  who.className = "portal-nav__who";
+  who.textContent = `Signed in as ${session.email || "you"}`;
+  const signout = nav.querySelector(".link-button");
+  nav.insertBefore(who, signout);
+}
+
 /** Format an ISO timestamp in America/Vancouver. */
 export function vancouverDateTime(iso) {
   if (!iso) return "—";

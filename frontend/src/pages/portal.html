@@ -6,7 +6,7 @@ nav: none
 sitemap: false
 scripts: portal.js
 ---
-<main id="main" tabindex="-1" class="site-main portal-page">
+<main id="main" tabindex="-1" class="site-main portal-page" data-portal-chrome="authed">
   <div class="container">
     <!-- Session warning banner (≤120s). -->
     <div id="session-banner" class="session-banner" role="alert" hidden>
@@ -35,7 +35,7 @@ scripts: portal.js
       <div id="terms-error" class="error-summary" role="alert" hidden></div>
       <div class="modal__actions">
         <button type="button" id="terms-accept" class="btn">Accept</button>
-        <button type="button" id="terms-signout" class="btn btn--ghost">Sign out</button>
+        <button type="button" id="terms-signout" class="link-button">Sign out</button>
       </div>
     </div>
   </div>

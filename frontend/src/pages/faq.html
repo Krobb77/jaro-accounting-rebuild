@@ -20,6 +20,14 @@ jsonld: faq
         </ul>
       </nav>
 
+      <div class="mkt-faq-search">
+        <label class="visually-hidden" for="faq-search">Search questions</label>
+        <input class="field-control" type="search" id="faq-search" name="faq-search" placeholder="Search questions&hellip;" autocomplete="off">
+        <p class="mkt-faq-search__status" id="faq-search-status" role="status"></p>
+      </div>
+
+      <p class="mkt-faq-no-results" id="faq-no-results" hidden>No questions match your search. Try different words &mdash; or <a href="/contact-us/">ask us directly</a>.</p>
+
       <section class="faq-category" id="hours-contact" aria-labelledby="faq-hours-h">
         <h2 id="faq-hours-h">Hours &amp; Contact</h2>
 
@@ -95,6 +103,69 @@ jsonld: faq
           <div class="faq-answer"><p>Jared Robbins &mdash; an accountant and tax strategist with nearly a decade of experience. His practice began as a small bookkeeping business and is now a full-service firm serving more than 300 clients across industries. Read more on our <a href="/about-us/">About Us</a> page.</p></div>
         </details>
       </section>
+
+      <div class="notice-box mkt-faq-escape" aria-labelledby="faq-escape-heading">
+        <h2 id="faq-escape-heading">Still have questions?</h2>
+        <p class="measure">We&rsquo;d rather hear from you directly than leave you guessing.</p>
+        <p>
+          <a class="btn" href="/contact-us/">Contact Us</a>
+          <a class="btn btn--dark" href="/free-30-min-consultation/">Book a Free Consultation</a>
+        </p>
+      </div>
     </section>
   </div>
+
+  <script>
+  /* FAQ enhancements (UX-fix W1): P9 live search filter + P11 pill scroll-spy.
+     Vanilla, dependency-free; degrades to plain anchors/accordions without JS. */
+  (function () {
+    "use strict";
+    var input = document.getElementById("faq-search");
+    var status = document.getElementById("faq-search-status");
+    var noResults = document.getElementById("faq-no-results");
+    var items = Array.prototype.slice.call(document.querySelectorAll(".faq-item"));
+    var categories = Array.prototype.slice.call(document.querySelectorAll(".faq-category"));
+
+    if (input) {
+      input.addEventListener("input", function () {
+        var q = input.value.trim().toLowerCase();
+        var visible = 0;
+        items.forEach(function (item) {
+          var summary = item.querySelector("summary");
+          var answer = item.querySelector(".faq-answer");
+          var hay = ((summary ? summary.textContent : "") + " " + (answer ? answer.textContent : "")).toLowerCase();
+          var show = !q || hay.indexOf(q) !== -1;
+          item.hidden = !show;
+          if (show) { visible++; }
+        });
+        categories.forEach(function (cat) {
+          var anyVisible = Array.prototype.some.call(cat.querySelectorAll(".faq-item"), function (i) { return !i.hidden; });
+          cat.hidden = !anyVisible;
+        });
+        if (noResults) { noResults.hidden = visible !== 0; }
+        if (status) {
+          status.textContent = q
+            ? (visible === 1 ? "1 matching question" : visible + " matching questions")
+            : "";
+        }
+      });
+    }
+
+    var pills = Array.prototype.slice.call(document.querySelectorAll(".faq-cats a"));
+    if (!("IntersectionObserver" in window) || !pills.length) { return; }
+    function setActive(id) {
+      pills.forEach(function (a) {
+        var on = a.getAttribute("href") === "#" + id;
+        a.classList.toggle("mkt-faq-cat--active", on);
+        if (on) { a.setAttribute("aria-current", "true"); } else { a.removeAttribute("aria-current"); }
+      });
+    }
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) { setActive(entry.target.id); }
+      });
+    }, { rootMargin: "-25% 0px -65% 0px" });
+    categories.forEach(function (cat) { spy.observe(cat); });
+  })();
+  </script>
 </main>

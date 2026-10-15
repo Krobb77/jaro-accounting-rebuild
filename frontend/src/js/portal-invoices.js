@@ -1,7 +1,7 @@
 /* /portal/invoices/ — invoice list + detail + PDF download. */
 import {
   portalApi, ApiRequestError, startSessionWatch, requireSession,
-  esc, vancouverDateTime,
+  initPortalChrome, esc, vancouverDateTime,
 } from "./portal-api.js";
 
 const root = document.getElementById("invoices-root");
@@ -23,24 +23,44 @@ function money(cents) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+/* P27: financial data in aligned rows — numbers right-aligned, status badges. */
+const STATUS_BADGE_CLASS = {
+  issued: "badge--issued",
+  paid: "badge--paid",
+  void: "badge--void",
+};
+
+function statusBadge(inv, overdue) {
+  if (overdue) return `<span class="badge badge--overdue">Overdue</span>`;
+  const cls = STATUS_BADGE_CLASS[inv.status] || "badge--void";
+  const label = inv.status.charAt(0).toUpperCase() + inv.status.slice(1);
+  return `<span class="badge ${cls}">${esc(label)}</span>`;
+}
+
 async function loadInvoices() {
   const res = await portalApi.get("/invoices");
   const items = res.items || [];
   if (!items.length) {
-    root.innerHTML = "<p class=\"portal-empty\">No invoices yet.</p>";
+    root.innerHTML = `<p class="portal-empty">No invoices yet. Invoices Jared sends you will appear here.</p>
+      <p class="portal-empty">Payment happens outside the portal — each invoice lists how to pay.</p>`;
     return;
   }
-  let html = `<ul class="portal-list">`;
+  let html = `<table class="data-table">
+    <thead><tr><th scope="col">Invoice</th><th scope="col">Due</th>
+    <th scope="col" class="num">Amount</th><th scope="col">Status</th>
+    <th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead>
+    <tbody>`;
   for (const inv of items) {
     const overdue = inv.status === "issued" && inv.due_at && new Date(inv.due_at) < new Date();
-    html += `<li>
-      <strong>${esc(inv.invoice_number)}</strong>
-      <span class="portal-list__meta">${money(inv.total_cents)} &middot;
-      due ${esc(vancouverDateTime(inv.due_at))} &middot; ${esc(inv.status)}${overdue ? " &middot; overdue" : ""}</span>
-      <button type="button" class="btn btn--small" data-invoice="${esc(inv.id)}">View</button>
-    </li>`;
+    html += `<tr>
+      <td><strong>${esc(inv.invoice_number)}</strong></td>
+      <td>${esc(vancouverDateTime(inv.due_at))}</td>
+      <td class="num">${money(inv.total_cents)}</td>
+      <td>${statusBadge(inv, overdue)}</td>
+      <td><button type="button" class="btn btn--small" data-invoice="${esc(inv.id)}">View</button></td>
+    </tr>`;
   }
-  root.innerHTML = html + `</ul><div id="invoice-detail"></div>`;
+  root.innerHTML = html + `</tbody></table><div id="invoice-detail"></div>`;
   root.querySelectorAll("[data-invoice]").forEach((btn) => {
     btn.addEventListener("click", () => showDetail(btn.dataset.invoice));
   });
@@ -55,13 +75,13 @@ async function showDetail(id) {
       <h2>Invoice ${esc(inv.invoice_number)}</h2>
       <p>Issued ${esc(vancouverDateTime(inv.issued_at))} &middot; Due ${esc(vancouverDateTime(inv.due_at))} &middot; Status: ${esc(inv.status)}</p>
       <table class="invoice-table">
-        <thead><tr><th scope="col">Description</th><th scope="col">Qty</th><th scope="col">Unit</th><th scope="col">Tax</th><th scope="col">Total</th></tr></thead>
+        <thead><tr><th scope="col">Description</th><th scope="col" class="num">Qty</th><th scope="col" class="num">Unit</th><th scope="col" class="num">Tax</th><th scope="col" class="num">Total</th></tr></thead>
         <tbody>`;
     for (const ln of inv.lines) {
-      html += `<tr><td>${esc(ln.description)}</td><td>${esc(ln.quantity)}</td>
-        <td>${money(ln.unit_cents)}</td>
-        <td>${ln.tax_rate_bps ? `${(ln.tax_rate_bps / 100).toFixed(2)}%` : "—"}</td>
-        <td>${money(ln.line_total_cents)}</td></tr>`;
+      html += `<tr><td>${esc(ln.description)}</td><td class="num">${esc(ln.quantity)}</td>
+        <td class="num">${money(ln.unit_cents)}</td>
+        <td class="num">${ln.tax_rate_bps ? `${(ln.tax_rate_bps / 100).toFixed(2)}%` : "—"}</td>
+        <td class="num">${money(ln.line_total_cents)}</td></tr>`;
     }
     html += `</tbody></table>
       <p>Subtotal: ${money(inv.subtotal_cents)} &middot; Tax: ${money(inv.tax_cents)}</p>
@@ -77,6 +97,7 @@ async function showDetail(id) {
 }
 
 (async function init() {
+  initPortalChrome();
   await requireSession();
   startSessionWatch({ bannerEl: banner, extendBtn });
   try {

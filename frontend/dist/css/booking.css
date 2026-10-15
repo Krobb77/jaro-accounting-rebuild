@@ -86,21 +86,23 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--color-neutral-300, #ccc);
+    /* Available days: bolder border + faint brand tint + pointer cursor
+       (three channels; never fully red per R2). */
+    border: 2px solid var(--color-neutral-400, #999);
     border-radius: var(--radius-sm);
-    background: var(--color-background);
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-background));
     font: inherit;
     cursor: pointer;
   }
   .bw-day:not(:disabled):hover {
     border-color: var(--color-primary);
-    border-width: 2px;
   }
   .bw-day.is-disabled, .bw-day:disabled {
     color: var(--color-neutral-400, #999);
     background: var(--color-neutral-100, #f4f4f4);
     cursor: not-allowed;
-    border-style: dashed;
+    /* Unavailable days: muted text, quiet hairline border, no emphasis. */
+    border: 1px solid var(--color-neutral-200, #e5e5e5);
   }
   .bw-day.is-selected {
     background: var(--color-primary);
@@ -199,6 +201,139 @@
     flex-wrap: wrap;
     margin-block: 1rem 1.5rem;
   }
+
+  /* --- Step position indicator (P12) --- */
+  .bw-steps > ol {
+    display: flex;
+    gap: 0.25rem;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    flex-wrap: wrap;
+  }
+  .bw-steps li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-pill);
+    color: var(--color-neutral-600, #666);
+    font-size: 0.875rem;
+  }
+  .bw-steps-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 50%;
+    border: 1.5px solid var(--color-neutral-400, #999);
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex: none;
+  }
+  .bw-steps li[aria-current="step"] {
+    color: var(--color-foreground);
+    font-weight: 700;
+  }
+  .bw-steps li[aria-current="step"] .bw-steps-num {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+  .bw-steps li.is-done .bw-steps-num {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: var(--color-background);
+  }
+
+  /* --- Calendar legend (P13) --- */
+  .bw-legend {
+    display: flex;
+    gap: 1rem;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-neutral-700, #555);
+  }
+  .bw-legend li { display: inline-flex; align-items: center; gap: 0.375rem; }
+  .bw-legend-swatch {
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: var(--radius-sm);
+    display: inline-block;
+    flex: none;
+  }
+  .bw-legend-swatch.is-available {
+    border: 2px solid var(--color-neutral-400, #999);
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-background));
+  }
+  .bw-legend-swatch.is-unavailable {
+    border: 1px solid var(--color-neutral-200, #e5e5e5);
+    background: var(--color-neutral-100, #f4f4f4);
+  }
+
+  /* --- Timezone prompt + dismissible dialog (PX3) --- */
+  .bw-tz-prompt {
+    border: 1px solid var(--color-neutral-300, #ccc);
+    border-radius: var(--radius-md, 0.5rem);
+    padding: 1.25rem 1.5rem;
+    max-inline-size: 38rem;
+    margin-block-end: 1.5rem;
+    scroll-margin-top: 15rem;
+  }
+  .bw-tz-prompt h2 { font-size: 1.25rem; margin-block-end: 0.5rem; }
+  .bw-tz-prompt p { margin-block-end: 0.75rem; }
+  .bw-tz-prompt p:last-child { margin-block-end: 0; }
+  dialog[id="bw-tz-dialog"] { position: relative; }
+  .bw-dialog-close {
+    position: absolute;
+    top: 0.625rem;
+    right: 0.625rem;
+    appearance: none;
+    background: none;
+    border: 0;
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0.375rem 0.625rem;
+    color: var(--color-neutral-600, #666);
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+  .bw-dialog-close:hover {
+    color: var(--color-charcoal);
+    background: var(--color-neutral-100, #f4f4f4);
+  }
+
+  /* --- Sticky-header offset for JS-revealed sections (PX2) ---
+     The site header is a two-tier sticky bar; scrolled-to sections must
+     land below it, never underneath. */
+  section[id^="bw-step-"] { scroll-margin-top: 15rem; }
+
+  /* booking-manage: the reschedule/cancel panels are JS-revealed under
+     the same sticky header. */
+  #m-reschedule-panel, #m-cancel-panel { scroll-margin-top: 15rem; }
+
+  /* --- Quiet danger action (P15): destructive but never the primary
+     red button; placed after neutral actions; fires only after an
+     inline confirmation. --- */
+  .btn-danger-quiet {
+    background: transparent;
+    color: var(--color-primary);
+    border: 2px solid var(--color-primary);
+  }
+  .btn-danger-quiet:hover {
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-background));
+    color: var(--color-primary);
+  }
+  .bw-confirm-inline {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-block-start: 0.75rem;
+  }
+  .bw-confirm-inline p { margin: 0; }
 
   @media (max-width: 30rem) {
     .bw-review > div { grid-template-columns: 1fr; gap: 0.25rem; }

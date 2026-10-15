@@ -9,5 +9,6 @@
 @import url("layout.css") layer(layout);
 @import url("components.css") layer(components);
 @import url("booking.css") layer(components);
+@import url("portal.css") layer(components);
 @import url("utilities.css") layer(utilities);
 @import url("print.css") layer(print);

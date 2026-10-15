@@ -14,7 +14,7 @@ scripts: booking-thanks.js
            response (booking-thanks.js). Hidden unless a result is present. -->
       <div id="bt-dynamic" hidden>
         <div class="notice-box" role="status">
-          <p class="notice-title">Your consultation is booked.</p>
+          <p class="notice-title"><svg class="mkt-success-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Your consultation is booked.</p>
           <p class="notice-text" id="bt-queued"></p>
           <p class="notice-text microcopy" id="bt-replayed-note" hidden>This page was reloaded from your earlier confirmation &mdash; your booking is unchanged.</p>
         </div>
@@ -35,7 +35,7 @@ scripts: booking-thanks.js
       <!-- Honest static fallback: direct visits, new tabs, expired sessions. -->
       <div id="bt-static">
         <div class="notice-box" role="status">
-          <p class="notice-title">Your consultation request is queued.</p>
+          <p class="notice-title"><svg class="mkt-success-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="11" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Your consultation request is queued.</p>
           <p class="notice-text">We&rsquo;ve received your request for a FREE 30-minute consultation, and it&rsquo;s queued for confirmation &mdash; not sent yet. Once confirmed, you&rsquo;ll get an email with your reference number, the date and time in your timezone, and links to reschedule or cancel.</p>
           <p class="notice-text muted"><small>Reference numbers look like <strong>JARO-2026-XXXXXX</strong>. Keep yours handy if you need to reach us about your booking.</small></p>
         </div>
@@ -44,7 +44,6 @@ scripts: booking-thanks.js
       <p>We look forward to speaking with you! If anything looks wrong &mdash; or you don&rsquo;t hear from us within a few minutes &mdash; call <a href="tel:[[contact.phone_tel]]">[[contact.phone]]</a> or email <a href="mailto:[[contact.email]]">[[contact.email]]</a>.</p>
       <p>
         <a class="btn" href="/">Back to Home Page</a>
-        <a class="btn btn--dark" href="/our-services/">Back to Our Services</a>
       </p>
     </section>
   </div>

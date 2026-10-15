@@ -127,12 +127,23 @@ def test_404_is_branded(built):
     ("about-us.html", "/about-us/", "About Us"),
     ("our-services.html", "/our-services/", "Our Services"),
     ("contact-us.html", "/contact-us/", "Contact Us"),
-    ("free-30-min-consultation.html", "/free-30-min-consultation/", "FREE 30 Min Consultation!"),
     ("index.html", "/", "Home"),
 ])
 def test_nav_marks_current_page(built, page, href, label):
     text = _page(built, page)
     assert f'<a href="{href}" aria-current="page">{label}</a>' in text, page
+
+
+def test_booking_page_has_single_header_cta(built):
+    # UX-fix W1 P1: the duplicate "FREE 30 Min Consultation!" nav text-link
+    # was removed; the booking page keeps exactly one header CTA (the red
+    # button). Scoped to the header — the booking page's own h1 is not
+    # this worker's page.
+    text = _page(built, "free-30-min-consultation.html")
+    header = text.split("</header>")[0]
+    assert ">FREE 30 Min Consultation!<" not in header
+    assert header.count('class="btn nav-cta"') == 1
+    assert "Book FREE 30 Min Consultation" in header
 
 
 # ---------------------------------------------------------------------------
@@ -195,10 +206,13 @@ def test_whatsapp_link_is_verbatim(built):
 # DONE 3 — copy audit
 # ---------------------------------------------------------------------------
 
-def test_hero_typo_is_fixed(built):
+def test_hero_subhead_carries_value_prop(built):
+    # UX-fix W1 P3: the subhead carries the outcome-focused value prop;
+    # the brand-name h1 is untouched (R5 rejected a rewrite).
     text = _page(built, "index.html")
-    assert "Focus on your business, let us focus on it." in text
-    assert "focus in it" not in text  # the original's typo, deliberately fixed
+    assert "<h1>JARO ACCOUNTING</h1>" in text
+    assert "Focus on your business" in text
+    assert "we&rsquo;ll handle the books, the taxes, and the strategy" in text
 
 
 def test_prices_are_verbatim(built):
@@ -293,7 +307,10 @@ def test_thank_you_honest_vocabulary(built):
     assert "JARO-2026-XXXXXX" in text
     # One link set (the original duplicated every link).
     assert text.count("Back to Home Page") == 1
-    assert text.count("Back to Our Services") == 1
+    # UX-fix W1 P16: the low-value "Back to Our Services" secondary action
+    # was removed — home is the single secondary step.
+    assert text.count("Back to Our Services") == 0
+    assert 'class="mkt-success-icon"' in text
 
 
 def test_faq_deep_links_and_categories(built):
@@ -688,3 +705,84 @@ def test_build_helpers_still_fail_closed():
     assert build_mod.load_testimonials() == []
     with pytest.raises(FileNotFoundError):  # missing JSON-LD also fails the build
         build_mod.load_jsonld("does-not-exist.json")
+
+
+# ---------------------------------------------------------------------------
+# UX-fix Worker 1 (2026-10-15) — marketing-page findings
+# ---------------------------------------------------------------------------
+
+def test_header_single_consultation_cta(built):
+    # P1: no duplicate nav text-link; exactly one red header button.
+    text = _page(built, "index.html")
+    assert "FREE 30 Min Consultation!" not in text
+    assert text.count('class="btn nav-cta"') == 1
+
+
+def test_footer_carries_hours(built):
+    # Mobile-hours fix: hours survive in the footer (visible on phones).
+    text = _page(built, "index.html")
+    assert "footer-hours" in text
+    assert "Sat 10&ndash;3" in text or "Sat 10–3" in text
+
+
+def test_index_subhead_carries_value_prop(built):
+    # P3: h1 stays the brand name; the subhead carries the outcome.
+    text = _page(built, "index.html")
+    assert "<h1>JARO ACCOUNTING</h1>" in text
+    assert "we&rsquo;ll handle the books" in text or "handle the books" in text
+
+
+def test_index_trust_strip_verifiable_facts_only(built):
+    # P2: 4 facts, each stated somewhere in the site's own copy.
+    text = _page(built, "index.html")
+    assert 'class="mkt-trust-list"' in text
+    for fact in ("Nearly a decade", "300+ satisfied clients", "New Westminster",
+                 "Tax, bookkeeping &amp; consulting"):
+        assert fact in text, fact
+
+
+def test_pages_end_with_cta(built):
+    # P5: about-us, our-services, faq each close with a consultation CTA.
+    for page in ("about-us.html", "our-services.html", "faq.html"):
+        text = _page(built, page)
+        assert 'class="section mkt-page-cta"' in text or "mkt-faq-escape" in text, page
+        assert '/free-30-min-consultation/' in text, page
+
+
+def test_pricing_tiers_have_ctas_and_offramp(built):
+    # P6 + P7: per-tier buttons and the uncertainty off-ramp.
+    text = _page(built, "our-services.html")
+    assert text.count('class="mkt-card-cta"') == 3
+    for label in ("Choose Small Business", "Choose Medium Business", "Choose Large Business"):
+        assert label in text, label
+    assert "mkt-offramp" in text
+    assert "Not sure which fits?" in text
+
+
+def test_contact_expectation_before_submit(built):
+    # P8: expectation-setting copy sits before the submit button.
+    text = _page(built, "contact-us.html")
+    idx_copy = text.find("reply within 1&ndash;2 business days")
+    idx_submit = text.find('type="submit"')
+    assert idx_copy != -1 and idx_submit != -1 and idx_copy < idx_submit
+
+
+def test_faq_search_and_escape_hatch(built):
+    # P9 + P10: live filter input and the human escape hatch.
+    text = _page(built, "faq.html")
+    assert 'id="faq-search"' in text
+    assert 'id="faq-no-results"' in text
+    assert 'class="notice-box mkt-faq-escape"' in text
+    assert "Still have questions?" in text
+    # P11: scroll-spy hooks the pills to the category sections.
+    assert "mkt-faq-cat--active" in text
+
+
+def test_thank_you_success_first(built):
+    # P16: checkmark + success state leads; single secondary action.
+    text = _page(built, "thank-you-for-your-booking.html")
+    assert text.count('class="mkt-success-icon"') == 2
+    assert text.count("Back to Home Page") == 1
+    assert "Back to Our Services" not in text
+    # PX4: human fallback (phone + email) present.
+    assert "1-(778)-227-4891" in text

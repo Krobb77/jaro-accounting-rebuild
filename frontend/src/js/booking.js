@@ -78,12 +78,35 @@ function handleRouteError(err, context) {
 /* Step navigation                                                     */
 /* ------------------------------------------------------------------ */
 
+// P12: the visible step indicator tracks "calendar → slots → form"
+// while the script's internal steps are finer-grained (code + review
+// are still "Your details" from the visitor's point of view).
+const STEP_INDICES = { calendar: 0, slots: 1, form: 2, code: 2, review: 2 };
+
+function updateStepIndicator(name) {
+  const nav = $("bw-steps");
+  if (!nav) return;
+  const idx = STEP_INDICES[name] ?? 0;
+  nav.hidden = false;
+  const items = [...nav.querySelectorAll("li")];
+  items.forEach((li, i) => {
+    if (i === idx) {
+      li.setAttribute("aria-current", "step");
+      li.classList.remove("is-done");
+    } else {
+      li.removeAttribute("aria-current");
+      li.classList.toggle("is-done", i < idx);
+    }
+  });
+}
+
 function showStep(name) {
   clearError();
   for (const s of STEPS) {
     const el = $(`bw-step-${s}`);
     el.hidden = s !== name;
   }
+  updateStepIndicator(name);
   const heading = $(`bw-${name}-title`);
   if (heading) heading.focus({ preventScroll: true });
   document.getElementById(`bw-step-${name}`).scrollIntoView({ block: "start", behavior: "smooth" });
@@ -139,6 +162,7 @@ function closeTimezoneDialog(confirmed) {
   }
   if (tzDialog.open) tzDialog.close();
   if (confirmed) {
+    $("bw-tz-prompt").hidden = true;
     updateTimezoneEchoes();
     // A zone change invalidates any picked day/slot (they were rendered
     // in the old zone) — start over at the calendar, honestly.
@@ -146,6 +170,13 @@ function closeTimezoneDialog(confirmed) {
     state.slot = null;
     showStep("calendar");
     void loadCalendar();
+  } else if (!state.timezone) {
+    // Dismissed without a choice: the page stays readable, the prompt
+    // (and nothing else) stays on screen.
+    for (const s of STEPS) $(`bw-step-${s}`).hidden = true;
+    const nav = $("bw-steps");
+    if (nav) nav.hidden = true;
+    $("bw-tz-prompt").hidden = false;
   }
 }
 
@@ -681,10 +712,14 @@ function wire() {
     e.preventDefault();
     closeTimezoneDialog(true);
   });
-  tzDialog.addEventListener("cancel", (e) => {
-    // Timezone is required to show real times — don't let the modal
-    // dismiss without a choice.
-    if (!state.timezone) e.preventDefault();
+  // PX3: the dialog is always dismissible — ×, ESC, and backdrop click
+  // all close it without a choice. Nothing auto-opens on arrival, so
+  // there's no arrival-time trap to guard anymore.
+  $("bw-tz-close").onclick = () => closeTimezoneDialog(false);
+  $("bw-tz-open").onclick = openTimezoneDialog;
+  tzDialog.addEventListener("cancel", () => closeTimezoneDialog(false));
+  tzDialog.addEventListener("click", (e) => {
+    if (e.target === tzDialog) closeTimezoneDialog(false); // backdrop click dismisses
   });
 
   $("bw-tz-change").onclick = openTimezoneDialog;
@@ -743,9 +778,12 @@ async function init() {
     showStep("calendar");
     await loadCalendar();
   } else {
-    // No step shown yet — the modal gates everything.
+    // PX3: never auto-open the modal on arrival. The page content stays
+    // readable; the visitor picks their zone via the prompt when ready.
     for (const s of STEPS) $(`bw-step-${s}`).hidden = true;
-    openTimezoneDialog();
+    const nav = $("bw-steps");
+    if (nav) nav.hidden = true;
+    $("bw-tz-prompt").hidden = false;
   }
 }
 
