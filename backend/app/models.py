@@ -104,6 +104,10 @@ class PortalUser(Base):
     terms_version_hash: Mapped[str | None] = mapped_column(String(64))
     failed_logins: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    # 2026-10-15: Jared provisions clients with a temporary password he
+    # communicates himself; the client must replace it on first login before
+    # any portal use (the authenticator-app requirement was removed).
+    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Phase 5: "new documents since last visit" marker (F1 needs-attention /
     # "N new" snapshot). Advanced when the client views the dashboard —
     # PORTAL_V1 §3 clears the marker on view.

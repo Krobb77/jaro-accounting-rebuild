@@ -27,6 +27,7 @@ from sqlalchemy import and_, or_, select, text
 from .db import new_uuid7, sha256_hex, utcnow
 from .mail import MailBackend, MailNotAllowed, RenderedMail, render_template
 from .models import EmailOutbox, OutboxAttempt
+from .site_contact import sender_address
 
 LEASE_TTL = timedelta(minutes=5)
 BACKOFF_BASE_SECONDS = 30
@@ -76,7 +77,7 @@ def stage_intent(
     snapshot_fields: dict,
     payload: dict | None = None,
     not_before=None,
-    sender: str = "Jaro Accounting <jared@jaroaccounting.com>",
+    sender: str = sender_address(),  # single source of truth: app/site_contact.py
     site_origin: str = "https://jaroaccounting.com",
     template_version: str = "v1",
 ) -> EmailOutbox:
@@ -217,7 +218,7 @@ def backoff_delay(attempts: int) -> timedelta:
 class WorkerConfig:
     batch_size: int = 25
     max_attempts: int = 8
-    sender: str = "Jaro Accounting <jared@jaroaccounting.com>"
+    sender: str = sender_address()  # single source of truth: app/site_contact.py
     site_origin: str = "https://jaroaccounting.com"
 
 

@@ -58,6 +58,50 @@
   .btn--dark { --btn-bg: var(--color-foreground-dark); }
   .btn--whatsapp { --btn-bg: var(--color-primary); } /* B5: same family, no third-party green */
   .btn--whatsapp svg { width: 1.15em; height: 1.15em; fill: currentColor; }
+  /* Busy submit buttons (Mawer pattern: spinner while the request is in
+     flight, double-submit disabled). */
+  .btn[aria-busy="true"] {
+    cursor: wait;
+    position: relative;
+    color: transparent;
+  }
+  .btn[aria-busy="true"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    color: var(--color-neutral-100);
+    animation: btn-spin 0.8s linear infinite;
+  }
+  @keyframes btn-spin { to { transform: rotate(360deg); } }
+  /* Show/hide password toggle (Mawer pattern: appears only once the field
+     is non-empty, so the default view stays uncluttered). */
+  .password-wrap { position: relative; }
+  .password-wrap input { padding-right: 4.5rem; }
+  .password-toggle {
+    position: absolute;
+    right: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: none;
+    color: var(--color-primary);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+  }
+  .password-toggle:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 
   /* --- Brand lockup: text-only logo --- */
   .brand {

@@ -1,4 +1,4 @@
-/* /portal/ — dashboard, terms gate, TOTP enrollment, session watch. */
+/* /portal/ — dashboard, onboarding gates, session watch. */
 import {
   portalApi, ApiRequestError, startSessionWatch,
   esc, vancouverDateTime,
@@ -13,9 +13,6 @@ const termsModal = document.getElementById("terms-modal");
 const termsBody = document.getElementById("terms-body");
 const termsError = document.getElementById("terms-error");
 let termsHash = null;
-
-const totpModal = document.getElementById("totp-modal");
-const totpError = document.getElementById("totp-error");
 
 function showError(msg) {
   errorBox.hidden = false;
@@ -58,47 +55,6 @@ document.getElementById("terms-accept").addEventListener("click", async () => {
 document.getElementById("terms-signout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
   window.location.href = "/portal/login/";
-});
-
-// --- TOTP enrollment -------------------------------------------------------------
-async function ensureTotp() {
-  const status = await portalApi.get("/2fa/status").catch(() => null);
-  if (!status || status.enrolled) return;
-  totpModal.hidden = false;
-  const res = await portalApi.post("/2fa/enroll");
-  document.getElementById("totp-manual-key").textContent = res.manual_key;
-  document.getElementById("totp-uri-link").href = res.provisioning_uri;
-}
-
-document.getElementById("totp-confirm").addEventListener("click", async () => {
-  totpError.hidden = true;
-  const code = document.getElementById("totp-code1").value.trim();
-  const code2 = document.getElementById("totp-code2").value.trim();
-  try {
-    const res = await portalApi.post("/2fa/confirm", { json: { code, code2 } });
-    document.getElementById("totp-step-key").hidden = true;
-    const list = document.getElementById("totp-recovery-list");
-    list.innerHTML = "";
-    for (const c of res.recovery_codes) {
-      const li = document.createElement("li");
-      li.innerHTML = "<code></code>";
-      li.firstChild.textContent = c;
-      list.appendChild(li);
-    }
-    document.getElementById("totp-step-recovery").hidden = false;
-  } catch (err) {
-    totpError.hidden = false;
-    totpError.textContent = err.message || "Those codes didn't work. Try the next two.";
-  }
-});
-
-document.getElementById("totp-recovery-saved").addEventListener("change", (e) => {
-  document.getElementById("totp-done").disabled = !e.target.checked;
-});
-
-document.getElementById("totp-done").addEventListener("click", async () => {
-  totpModal.hidden = true;
-  await boot();
 });
 
 // --- dashboard ---------------------------------------------------------------------
@@ -151,9 +107,10 @@ async function boot() {
       await ensureTerms();
       return;
     }
-    if (err instanceof ApiRequestError && err.code === "totp_required") {
-      root.innerHTML = "<p>Two-step verification setup is required. Opening setup&hellip;</p>";
-      await ensureTotp();
+    if (err instanceof ApiRequestError && err.code === "password_change_required") {
+      // Temporary-password session landed here directly: the login page
+      // shows the forced-change form for sessions in this state.
+      window.location.href = "/portal/login/";
       return;
     }
     if (err instanceof ApiRequestError && err.status === 401) {
@@ -166,7 +123,6 @@ async function boot() {
 }
 
 (async function init() {
-  // Terms first (the gate), then TOTP, then content — matches the backend order.
   const termsOk = await ensureTerms().catch((err) => {
     if (err instanceof ApiRequestError && err.status === 401) {
       window.location.href = "/portal/login?reason=session-expired";
@@ -176,5 +132,4 @@ async function boot() {
   if (!termsOk) return;
   startSessionWatch({ bannerEl: banner, extendBtn });
   await boot();
-  // TOTP check happens after first content load (backend returns totp_required).
 })();

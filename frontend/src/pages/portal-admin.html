@@ -53,7 +53,14 @@ scripts: portal-admin.js
           <label for="invite-phone">Phone (optional, E.164)</label>
           <input id="invite-phone" type="tel" placeholder="+16045550101">
         </div>
-        <button class="btn" type="submit">Send invitation</button>
+        <div class="form-field">
+          <label for="invite-temp-password">Temporary password</label>
+          <input id="invite-temp-password" type="password" autocomplete="new-password"
+                 required minlength="12" maxlength="256">
+          <p class="form-hint">Min 12 characters. You'll email this to the client yourself —
+            they'll choose their own password on first sign-in.</p>
+        </div>
+        <button class="btn" type="submit">Create client account</button>
       </form>
       <div id="invites-root" role="status"><p>Loading invitations&hellip;</p></div>
     </section>

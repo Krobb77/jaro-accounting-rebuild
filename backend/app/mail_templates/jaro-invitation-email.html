@@ -86,9 +86,9 @@
 
             <p style="margin: 0 0 18px 0; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #333333;"><strong>Your username is:</strong> {{CLIENT_EMAIL}}</p>
 
-            <p style="margin: 0 0 18px 0; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #333333;">If you have any questions or concerns, please contact Jared Robbins at <a href="mailto:jared@jaroaccounting.com" style="color: #CD2220; text-decoration: underline;">jared@jaroaccounting.com</a> or call <a href="tel:+17782274891" style="color: #CD2220; text-decoration: underline;">1-(778)-227-4891</a>.</p>
+            <p style="margin: 0 0 18px 0; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #333333;">If you have any questions or concerns, please contact Jared Robbins at <a href="mailto:{{CONTACT_EMAIL}}" style="color: #CD2220; text-decoration: underline;">{{CONTACT_EMAIL}}</a> or call <a href="tel:{{CONTACT_PHONE_TEL}}" style="color: #CD2220; text-decoration: underline;">{{CONTACT_PHONE}}</a>.</p>
 
-            <p style="margin: 0 0 22px 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 20px; color: #666666;">If you weren&rsquo;t expecting this email, please don&rsquo;t click the link &mdash; contact Jared Robbins directly at <a href="mailto:jared@jaroaccounting.com" style="color: #CD2220; text-decoration: underline;">jared@jaroaccounting.com</a> and let him know. We&rsquo;ll never ask for your password by email or phone.</p>
+            <p style="margin: 0 0 22px 0; font-family: Arial, Helvetica, sans-serif; font-size: 13px; line-height: 20px; color: #666666;">If you weren&rsquo;t expecting this email, please don&rsquo;t click the link &mdash; contact Jared Robbins directly at <a href="mailto:{{CONTACT_EMAIL}}" style="color: #CD2220; text-decoration: underline;">{{CONTACT_EMAIL}}</a> and let him know. We&rsquo;ll never ask for your password by email or phone.</p>
 
             <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 23px; color: #333333;">Sincerely,<br /><strong>Jaro Accounting</strong></p>
           </td>
@@ -97,7 +97,7 @@
         <!-- Footer -->
         <tr>
           <td align="center" style="background-color: #f2f2f2; padding: 28px 30px 10px 30px;" class="px-mobile">
-            <p style="margin: 0 0 8px 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 18px; color: #666666;"><strong>Jaro Accounting</strong> &middot; 1238855 BC LTD<br />215 Mowat Street<br />New Westminster, BC V3M 4B1<br /><a href="https://jaroaccounting.com" style="color: #666666; text-decoration: underline;">jaroaccounting.com</a></p>
+            <p style="margin: 0 0 8px 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 18px; color: #666666;"><strong>{{CONTACT_BUSINESS_NAME}}</strong> &middot; {{CONTACT_LEGAL_NAME}}<br />{{CONTACT_STREET}}<br />{{CONTACT_CITY}}, {{CONTACT_REGION}} {{CONTACT_POSTAL}}<br /><a href="https://{{CONTACT_WEBSITE}}" style="color: #666666; text-decoration: underline;">{{CONTACT_WEBSITE}}</a></p>
             <p style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 18px; color: #666666;">Copyright &copy; 2026 Jaro Accounting. All rights reserved.</p>
           </td>
         </tr>

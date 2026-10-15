@@ -110,10 +110,12 @@ copy changes with it).
 - [ ] **Revoke-all-sessions:** per-client lever kills every live session
       immediately (lost device, suspected sharing). The client just logs
       in again.
-- [ ] **Client TOTP-disable:** if a client is locked out of 2FA, only you
-      can disable it (reason required, audit-logged) — the client is then
-      **forced to re-enroll at next login**. Clients cannot disable their
-      own TOTP, ever.
+- [ ] **Client password reset:** if a client forgets their password,
+      set a new temporary password for them in the owner console (reason
+      required, audit-logged). This revokes all their live sessions and any
+      outstanding password-reset links. The client signs in with the
+      temporary password and is **forced to choose their own password**
+      before they can reach the portal.
 
 ## 5. Session and timeout expectations ☐
 

@@ -71,7 +71,7 @@ _PRE_GATE_EXACT = {
 }
 _PRE_GATE_PREFIXES = (
     "/api/v1/portal/terms/",
-    "/api/v1/portal/2fa/",
+    "/api/v1/portal/password/",
     "/api/v1/portal/sessions/",
 )
 
@@ -83,12 +83,13 @@ def _pre_gate_path(path: str) -> bool:
 
 
 def client(request: Request, db=DB) -> PortalUser:
-    """Authenticated client with the terms/TOTP gates.
+    """Authenticated client with the onboarding gates.
 
-    Until terms are accepted, every portal route except terms/2fa/session
-    returns 403 terms_not_accepted; until TOTP is enrolled the same set
-    returns 403 totp_required. (Terms first: the first-run flow is
-    set-password → terms modal → TOTP enrollment.)
+    Until a temporary password is replaced, every portal route except
+    password-change/terms/session returns 403 password_change_required;
+    until terms are accepted, the same set returns 403 terms_not_accepted.
+    (Password first: the first-run flow is temp-password login →
+    forced password change → terms modal → portal.)
     """
     view = sessions.require_session(request)
     user = db.get(PortalUser, view.user_id)
@@ -99,10 +100,10 @@ def client(request: Request, db=DB) -> PortalUser:
     ):
         raise ApiError("forbidden")
     if not _pre_gate_path(request.url.path):
+        if user.must_change_password:
+            raise ApiError("password_change_required")
         if user.terms_accepted_at is None:
             raise ApiError("terms_not_accepted")
-        if user.totp_enrolled_at is None:
-            raise ApiError("totp_required")
     return user
 
 
@@ -140,32 +141,9 @@ async def _upload_budget(request: Request):
 # --- request models (A2 closed) ---------------------------------------------------
 
 
-class InvitationVerifyRequest(StrictModel):
-    token: str = Field(min_length=20, max_length=128)
-
-
-class SetPasswordRequest(StrictModel):
-    token: str = Field(min_length=20, max_length=128)
-    password: str = Field(min_length=12, max_length=256)
-
-
 class LoginRequest(StrictModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=1, max_length=1024)
-
-
-class TotpVerifyRequest(StrictModel):
-    challenge_id: str = Field(min_length=1, max_length=128)
-    code: str = Field(min_length=1, max_length=32)
-
-
-class SmsSendRequest(StrictModel):
-    challenge_id: str = Field(min_length=1, max_length=128)
-
-
-class SmsVerifyRequest(StrictModel):
-    challenge_id: str = Field(min_length=1, max_length=128)
-    code: str = Field(min_length=6, max_length=6)
 
 
 class PasswordResetRequestRequest(StrictModel):
@@ -185,69 +163,14 @@ class TermsAcceptRequest(StrictModel):
     version_hash: str = Field(min_length=16, max_length=128)
 
 
-class TotpEnrollConfirmRequest(StrictModel):
-    code: str = Field(min_length=6, max_length=6)
-    code2: str = Field(min_length=6, max_length=6)
-
-
-class PhoneCodeRequest(StrictModel):
-    phone_e164: str = Field(min_length=8, max_length=32)
-
-
-class PhoneVerifyRequest(StrictModel):
-    phone_e164: str = Field(min_length=8, max_length=32)
-    code: str = Field(min_length=6, max_length=6)
-
-
 class PasswordChangeRequest(StrictModel):
-    current_password: str = Field(min_length=1, max_length=1024)
+    # Optional: omitted for forced changes (temporary-password onboarding /
+    # owner reset), where the session itself proves prior-password knowledge.
+    current_password: str | None = Field(default=None, max_length=1024)
     new_password: str = Field(min_length=12, max_length=256)
 
 
-# --- invitation accept (public) -----------------------------------------------------
-
-
-@router.post(
-    "/invitations/verify",
-    operation_id="portalInvitationVerify",
-    dependencies=[Depends(rate_limit_dependency("portal.invite_verify", target_from="token"))],
-)
-def invitation_verify(body: InvitationVerifyRequest, request: Request, db=DB):
-    ctx = _ctx(request)
-    invite = portal_lib.verify_invite(db, body.token, request_id=ctx["request_id"])
-    if invite is None:
-        # Single safe 410 — no validity oracle (AUTH §3.3).
-        raise ApiError("invitation_invalid")
-    return {
-        "ok": True,
-        "client_name": invite.client_name,
-        "email_masked": portal_lib.mask_email(invite.email),
-        "expires_at": portal_lib.utc_iso(invite.expires_at),
-    }
-
-
-@router.post(
-    "/invitations/set-password",
-    status_code=201,
-    operation_id="portalInvitationSetPassword",
-    dependencies=[Depends(rate_limit_dependency("portal.set_password", target_from="token"))],
-)
-def invitation_set_password(body: SetPasswordRequest, request: Request, response: Response, db=DB):
-    key = require_idempotency_key(request)  # A3: missing key fails loudly (422)
-    _bind_locks(request, db)
-    ctx = _ctx(request)
-    try:
-        result = portal_lib.set_password(
-            db, raw_token=body.token, password=body.password, idem_key=key,
-            request_id=ctx["request_id"], ip=ctx["ip"], user_agent=ctx["user_agent"],
-            secret_key=ctx["secret_key"],
-        )
-    except ReplayHit as hit:
-        return _replay(hit)
-    return _set_session_cookie(response, result)
-
-
-# --- login + 2FA (public) ---------------------------------------------------------------
+# --- login (public; password-only) ---------------------------------------------------------------------------------------------------------------------------
 
 
 @router.post(
@@ -256,54 +179,13 @@ def invitation_set_password(body: SetPasswordRequest, request: Request, response
     operation_id="portalLogin",
     dependencies=[Depends(rate_limit_dependency("portal.login", target_from="email"))],
 )
-def portal_login(body: LoginRequest, request: Request, db=DB):
+def portal_login(body: LoginRequest, request: Request, response: Response, db=DB):
     ctx = _ctx(request)
-    return portal_lib.client_login(
+    _bind_locks(request, db)
+    result = portal_lib.client_login(
         db, email=body.email, password=body.password,
-        request_id=ctx["request_id"], ip=ctx["ip"], secret_key=ctx["secret_key"],
-    )
-
-
-@router.post(
-    "/login/2fa",
-    operation_id="portalLoginTotp",
-    dependencies=[Depends(rate_limit_dependency("portal.mfa", target_from="challenge_id"))],
-)
-def portal_login_totp(body: TotpVerifyRequest, request: Request, response: Response, db=DB):
-    _bind_locks(request, db)
-    ctx = _ctx(request)
-    result = portal_lib.client_verify_totp(
-        db, challenge_id=body.challenge_id, code=body.code,
         request_id=ctx["request_id"], ip=ctx["ip"], user_agent=ctx["user_agent"],
-        secret_key=ctx["secret_key"], settings=ctx["settings"],
-    )
-    return _set_session_cookie(response, result)
-
-
-@router.post(
-    "/login/sms/request",
-    operation_id="portalLoginSmsRequest",
-    dependencies=[Depends(rate_limit_dependency("portal.mfa", target_from="challenge_id"))],
-)
-def portal_login_sms_request(body: SmsSendRequest, request: Request, db=DB):
-    _bind_locks(request, db)
-    ctx = _ctx(request)
-    return portal_lib.client_sms_request(
-        db, challenge_id=body.challenge_id, request_id=ctx["request_id"])
-
-
-@router.post(
-    "/login/sms/verify",
-    operation_id="portalLoginSmsVerify",
-    dependencies=[Depends(rate_limit_dependency("portal.mfa", target_from="challenge_id"))],
-)
-def portal_login_sms_verify(body: SmsVerifyRequest, request: Request, response: Response, db=DB):
-    _bind_locks(request, db)
-    ctx = _ctx(request)
-    result = portal_lib.client_sms_verify(
-        db, challenge_id=body.challenge_id, code=body.code,
-        request_id=ctx["request_id"], ip=ctx["ip"], user_agent=ctx["user_agent"],
-        secret_key=ctx["secret_key"], lock_backend=ctx["lock_backend"],
+        secret_key=ctx["secret_key"],
     )
     return _set_session_cookie(response, result)
 
@@ -449,66 +331,17 @@ def terms_accept(body: TermsAcceptRequest, request: Request, db=DB, session: ses
                                    request_id=ctx["request_id"])
 
 
-# --- 2FA management ----------------------------------------------------------------------
-
-
-@router.get("/2fa/status", operation_id="portalTotpStatus")
-def totp_status(db=DB, user: PortalUser = Client):
-    return {
-        "enrolled": user.totp_enrolled_at is not None,
-        "sms_configured": bool(user.phone_verified_at),
-    }
-
-
-@router.post("/2fa/enroll", operation_id="portalTotpEnroll")
-def totp_enroll(request: Request, db=DB, session: sessions.SessionView = Authed):
-    ctx = _ctx(request)
-    user = db.get(PortalUser, session.user_id)
-    if user is None or user.role != "client":
-        raise ApiError("forbidden")
-    return portal_lib.totp_enroll(db, user=user, settings=ctx["settings"],
-                                  request_id=ctx["request_id"])
-
-
-@router.post("/2fa/confirm", operation_id="portalTotpConfirm")
-def totp_confirm(body: TotpEnrollConfirmRequest, request: Request, db=DB,
-                 session: sessions.SessionView = Authed):
-    ctx = _ctx(request)
-    user = db.get(PortalUser, session.user_id)
-    if user is None or user.role != "client":
-        raise ApiError("forbidden")
-    return portal_lib.totp_confirm(
-        db, user=user, code=body.code, code2=body.code2,
-        settings=ctx["settings"], request_id=ctx["request_id"],
-    )
-
-
-@router.post("/phone/request-code", operation_id="portalPhoneRequestCode")
-def phone_request_code(body: PhoneCodeRequest, request: Request, db=DB, user: PortalUser = Client):
-    _bind_locks(request, db)
-    ctx = _ctx(request)
-    return portal_lib.phone_request_code(
-        db, user=user, phone_e164=body.phone_e164, request_id=ctx["request_id"])
-
-
-@router.post("/phone/verify", operation_id="portalPhoneVerify")
-def phone_verify(body: PhoneVerifyRequest, request: Request, db=DB, user: PortalUser = Client):
-    _bind_locks(request, db)
-    ctx = _ctx(request)
-    return portal_lib.phone_verify(
-        db, user=user, phone_e164=body.phone_e164, code=body.code,
-        request_id=ctx["request_id"], lock_backend=ctx["lock_backend"],
-    )
-
-
 @router.post("/password/change", operation_id="portalPasswordChange")
 def password_change(body: PasswordChangeRequest, request: Request, response: Response,
                     db=DB, user: PortalUser = Client, session: sessions.SessionView = Authed):
+    """Password change: forced (temporary password — no current password
+    needed) or voluntary (in-settings — current password required)."""
     _bind_locks(request, db)
     ctx = _ctx(request)
-    result = portal_lib.password_change(
-        db, user=user, current_password=body.current_password, new_password=body.new_password,
-        session_id=session.id, request_id=ctx["request_id"], ip=ctx["ip"],
+    result = portal_lib.change_client_password(
+        db, user=user, new_password=body.new_password,
+        current_password=body.current_password, session_id=session.id,
+        request_id=ctx["request_id"], ip=ctx["ip"],
         user_agent=ctx["user_agent"], secret_key=ctx["secret_key"],
     )
     return _set_session_cookie(response, result)

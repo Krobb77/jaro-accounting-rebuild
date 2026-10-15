@@ -240,7 +240,11 @@ def test_tax_savings_qualifier_exists(built):
 def test_legal_page_makes_no_credential_claims(built):
     text = _page(built, "legal.html")
     assert "1238855 BC LTD" in text
-    assert "215 Mowat Street" in text
+    # Physical street address was removed 2026-10-15; a placeholder ships
+    # until Jared provides the real one (contact info is centralized in
+    # src/data/site-contact.json).
+    assert "215 Mowat Street" not in text
+    assert "[Street Address]" in text
     # The credential section is explicitly marked pending owner confirmation.
     assert "pending owner confirmation" in text
     assert "Not yet published" in text

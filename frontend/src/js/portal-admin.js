@@ -92,7 +92,7 @@ async function renderDossier() {
     <hr>
     <h4>Security</h4>
     <button type="button" class="btn btn--small" id="revoke-all">Revoke all sessions</button>
-    ${d.totp_enrolled_at ? `<button type="button" class="btn btn--small" id="disable-totp">Disable two-step verification</button>` : ""}`;
+    <button type="button" class="btn btn--small" id="reset-password">Set temporary password</button>`;
   } else if (currentTab === "documents") {
     html += `<ul class="portal-list">` + (d.documents || []).map((doc) =>
       `<li><strong>${esc(doc.original_filename)}</strong>
@@ -167,12 +167,18 @@ function wireDossier() {
       alert(`Revoked ${res.revoked_count} session(s).`);
     } catch (err) { showError(err.message); }
   });
-  const disableTotp = document.getElementById("disable-totp");
-  if (disableTotp) disableTotp.addEventListener("click", async () => {
-    const reason = prompt("Reason for disabling two-step verification (required, audited):");
+  const resetPassword = document.getElementById("reset-password");
+  if (resetPassword) resetPassword.addEventListener("click", async () => {
+    const temp = prompt("New temporary password for this client (min 12 characters).\nYou will email it to them yourself — the portal never sends passwords.");
+    if (!temp) return;
+    const reason = prompt("Reason for the reset (required, audited):");
     if (!reason) return;
+    if (!confirm("This sets a new temporary password and signs the client out everywhere. Continue?")) return;
     try {
-      await adminApi.post(`/clients/${encodeURIComponent(currentClientId)}/2fa/disable`, { json: { reason } });
+      await adminApi.post(`/clients/${encodeURIComponent(currentClientId)}/password/reset`, {
+        json: { temp_password: temp, reason },
+      });
+      alert("Temporary password set. Email it to the client yourself — they must choose their own password on next sign-in.");
       await renderDossier();
     } catch (err) { showError(err.message); }
   });
@@ -278,22 +284,13 @@ async function loadInvites() {
     html += `<li><strong>${esc(inv.client_name)}</strong>
       <span class="portal-list__meta">${esc(inv.email)} &middot; ${esc(inv.status)} &middot; expires ${esc(vancouverDateTime(inv.expires_at))}</span>
       ${(inv.status === "created" || inv.status === "emailed") ? `
-      <button type="button" class="btn btn--small" data-resend="${esc(inv.id)}">Resend</button>
       <button type="button" class="btn btn--small" data-revoke="${esc(inv.id)}">Revoke</button>` : ""}
     </li>`;
   }
   invitesRoot.innerHTML = html + `</ul>`;
-  invitesRoot.querySelectorAll("[data-resend]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      try {
-        await adminApi.post(`/invitations/${encodeURIComponent(btn.dataset.resend)}/resend`, { headers: { "Idempotency-Key": idempotencyKey() } });
-        await loadInvites();
-      } catch (err) { showError(err.message); }
-    });
-  });
   invitesRoot.querySelectorAll("[data-revoke]").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (!confirm("Revoke this invitation? The link will stop working.")) return;
+      if (!confirm("Revoke this invitation?")) return;
       try {
         await adminApi.post(`/invitations/${encodeURIComponent(btn.dataset.revoke)}/revoke`, {
           json: {}, headers: { "Idempotency-Key": idempotencyKey() },
@@ -313,6 +310,12 @@ document.getElementById("invite-form").addEventListener("submit", async (e) => {
   };
   const phone = document.getElementById("invite-phone").value.trim();
   if (phone) body.phone_e164 = phone;
+  const tempPassword = document.getElementById("invite-temp-password").value;
+  if (!tempPassword || tempPassword.length < 12) {
+    showError("Enter a temporary password of at least 12 characters.");
+    return;
+  }
+  body.temp_password = tempPassword;
   try {
     await adminApi.post("/invitations", { json: body, headers: { "Idempotency-Key": idempotencyKey() } });
     e.target.reset();

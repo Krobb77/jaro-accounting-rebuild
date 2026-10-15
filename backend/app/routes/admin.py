@@ -112,6 +112,9 @@ class InvitationCreateRequest(StrictModel):
     email: str = Field(min_length=3, max_length=320)
     phone_e164: str | None = Field(default=None, max_length=32)
     note: str | None = Field(default=None, max_length=1000)
+    # Temporary password Jared sets and communicates himself (min 12 chars
+    # per the password policy); the client must replace it on first login.
+    temp_password: str = Field(min_length=12, max_length=256)
 
 
 class RevokeRequest(StrictModel):
@@ -283,7 +286,8 @@ def invitation_create(body: InvitationCreateRequest, request: Request, db=DB, us
     try:
         return portal_lib.create_invitation(
             db, owner=user, client_name=body.client_name, email=body.email,
-            phone_e164=body.phone_e164, note=body.note, idem_key=key,
+            phone_e164=body.phone_e164, note=body.note,
+            temp_password=body.temp_password, idem_key=key,
             request_id=ctx["request_id"],
         )
     except ReplayHit as hit:
@@ -297,24 +301,6 @@ def invitation_get(invitation_id: str, db=DB, user: PortalUser = Owner):
     proj["email_status"] = portal_lib.email_status_for_invite(db, row.id)
     proj["events"] = portal_lib.invite_events_trail(db, row.id)
     return proj
-
-
-@router.post(
-    "/invitations/{invitation_id}/resend",
-    operation_id="adminInvitationResend",
-    dependencies=[Depends(rate_limit_dependency("admin.invitations"))],
-)
-def invitation_resend(invitation_id: str, request: Request, db=DB, user: PortalUser = Owner):
-    key = require_idempotency_key(request)
-    _bind_locks(request, db)
-    ctx = _ctx(request)
-    try:
-        return portal_lib.resend_invitation(
-            db, owner=user, invite_id=invitation_id, idem_key=key,
-            request_id=ctx["request_id"],
-        )
-    except ReplayHit as hit:
-        return _replay(hit)
 
 
 @router.post(
@@ -375,13 +361,20 @@ def client_patch(client_id: str, body: ClientPatchRequest, request: Request,
     )
 
 
-@router.post("/clients/{client_id}/2fa/disable", operation_id="adminClient2faDisable")
-def client_2fa_disable(client_id: str, body: RevokeRequest, request: Request,
-                       db=DB, user: PortalUser = Owner):
+class ClientPasswordResetRequest(StrictModel):
+    # Temporary password Jared sets and communicates himself; the client
+    # must replace it on next login.
+    temp_password: str = Field(min_length=12, max_length=256)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/clients/{client_id}/password/reset", operation_id="adminClientPasswordReset")
+def client_password_reset(client_id: str, body: ClientPasswordResetRequest, request: Request,
+                          db=DB, user: PortalUser = Owner):
     ctx = _ctx(request)
-    return portal_lib.disable_client_totp(
-        db, owner=user, client_id=client_id, reason=body.reason,
-        request_id=ctx["request_id"],
+    return portal_lib.reset_client_password(
+        db, owner=user, client_id=client_id, temp_password=body.temp_password,
+        reason=body.reason, request_id=ctx["request_id"],
     )
 
 

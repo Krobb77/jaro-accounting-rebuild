@@ -41,10 +41,10 @@ def _tables(db_url: str) -> set:
 
 
 def test_single_head_and_linear_history():
-    assert alembic_heads.head_revision() == "0014"
+    assert alembic_heads.head_revision() == "0015"
     history = alembic_heads.linear_history()
     assert history == ["0001", "0002", "0003", "0004", "0005", "0006", "0007",
-                       "0008", "0009", "0010", "0011", "0012", "0013", "0014"]
+                       "0008", "0009", "0010", "0011", "0012", "0013", "0014", "0015"]
 
 
 def test_upgrade_downgrade_upgrade_cycle(scratch_db_url):

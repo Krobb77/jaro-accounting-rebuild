@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 from fpdf import FPDF
 
+from .site_contact import SITE_CONTACT, address_1line
+
 # Brand tokens (match the site's CSS tokens).
 _RED = (205, 34, 32)
 _CHARCOAL = (48, 48, 48)
@@ -45,7 +47,7 @@ class _InvoicePDF(FPDF):
         self.set_x(12)
         self.set_font("Helvetica", "", 8)
         self.set_text_color(200, 200, 200)
-        self.cell(0, 5, "215 Mowat Street, New Westminster, BC V3M 4B1", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 5, address_1line(), new_x="LMARGIN", new_y="NEXT")  # site_contact.py
         self.set_xy(150, 10)
         self.set_text_color(*_RED)
         self.set_font("Helvetica", "B", 20)
@@ -59,7 +61,8 @@ class _InvoicePDF(FPDF):
         self.cell(
             0,
             4,
-            "Jaro Accounting \u00b7 1238855 BC LTD \u00b7 jared@jaroaccounting.com \u00b7 1-(778)-227-4891",
+            f"{SITE_CONTACT['business_name']} · {SITE_CONTACT['legal_name']} · "
+            f"{SITE_CONTACT['email']} · {SITE_CONTACT['phone_display']}",
             align="C",
         )
 

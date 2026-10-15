@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from email.message import EmailMessage
 
 from .db import new_uuid7, utcnow
+from .site_contact import SITE_CONTACT, address_1line
 
 
 class MailNotAllowed(Exception):
@@ -155,7 +156,7 @@ TEMPLATES = {
         "Your username is: {client_email}\n"
         "\n"
         "If you have any questions or concerns, please contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or call 1-(778)-227-4891.\n"
+        f"{SITE_CONTACT['email']} or call {SITE_CONTACT['phone_display']}.\n"
         "\n"
         "If you didn't request this, you can safely ignore this email — your\n"
         "password won't change unless the link is used. We'll never ask for\n"
@@ -165,10 +166,10 @@ TEMPLATES = {
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
-        "Copyright © 2026 Jaro Accounting. All rights reserved.\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
+        "Copyright © 2026 {contact_business_name}. All rights reserved.\n"
         "\n"
         "The information transmitted is intended only for the person or\n"
         "entity to which it is addressed and may contain confidential and/or\n"
@@ -203,10 +204,10 @@ TEMPLATES = {
         "— Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
-        "Copyright © 2026 Jaro Accounting. All rights reserved.\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
+        "Copyright © 2026 {contact_business_name}. All rights reserved.\n"
         "\n"
         "The information transmitted is intended only for the person or\n"
         "entity to which it is addressed and may contain confidential and/or\n"
@@ -248,7 +249,7 @@ TEMPLATES = {
         "Cancel: {cancel_url}\n"
         "\n"
         "If you have any questions, please contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or call 1-(778)-227-4891.\n"
+        "{contact_email} or call {contact_phone}.\n"
         "\n"
         "This email was triggered by a booking made on jaroaccounting.com.\n"
         "If you didn't book this, you can safely ignore it — or cancel it\n"
@@ -258,10 +259,10 @@ TEMPLATES = {
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
-        "Copyright © 2026 Jaro Accounting. All rights reserved.\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
+        "Copyright © 2026 {contact_business_name}. All rights reserved.\n"
         "\n"
         "The information transmitted is intended only for the person or\n"
         "entity to which it is addressed and may contain confidential and/or\n"
@@ -289,7 +290,7 @@ TEMPLATES = {
         "\n"
         "---\n"
         "This notice is for Jared only.\n"
-        "Jaro Accounting · 1238855 BC LTD",
+        "{contact_business_line}",
     ),
     "booking_reminder": (
         "Reminder: your consultation on {date_short}",
@@ -314,15 +315,15 @@ TEMPLATES = {
         "Cancel: {cancel_url}\n"
         "\n"
         "If you have any questions, please contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or call 1-(778)-227-4891.\n"
+        "{contact_email} or call {contact_phone}.\n"
         "\n"
         "Sincerely,\n"
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
         "Copyright © 2026 Jaro Accounting. All rights reserved.",
     ),
     # EMAIL_TEMPLATES §5 item 8 (out of scope for that document): the
@@ -349,20 +350,20 @@ TEMPLATES = {
         "{action_line}"
         "\n"
         "If you have any questions, please contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or call 1-(778)-227-4891.\n"
+        "{contact_email} or call {contact_phone}.\n"
         "\n"
         "This email was triggered by a cancellation on jaroaccounting.com.\n"
-        "If you didn't cancel this, please call 1-(778)-227-4891 so we can\n"
+        "If you didn't cancel this, please call {contact_phone} so we can\n"
         "look into it.\n"
         "\n"
         "Sincerely,\n"
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
-        "Copyright © 2026 Jaro Accounting. All rights reserved.\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
+        "Copyright © 2026 {contact_business_name}. All rights reserved.\n"
         "\n"
         "The information transmitted is intended only for the person or\n"
         "entity to which it is addressed and may contain confidential and/or\n"
@@ -396,7 +397,7 @@ TEMPLATES = {
         "---\n"
         "This notice is for Jared only. Reply to the guest at {guest_email}\n"
         "(set as Reply-To).\n"
-        "Jaro Accounting · 1238855 BC LTD",
+        "{contact_business_line}",
     ),
     "inquiry_receipt": (
         "We received your message — ref {request_id}",
@@ -416,9 +417,9 @@ TEMPLATES = {
         "What happens next\n"
         "\n"
         "1. Jared will review your message — normally within {response_sla}.\n"
-        "2. We'll reply from jared@jaroaccounting.com, so it's worth checking\n"
+        "2. We'll reply from {contact_email}, so it's worth checking\n"
         "   your spam folder if you don't hear from us.\n"
-        "3. If it's urgent, call 1-(778)-227-4891.\n"
+        "3. If it's urgent, call {contact_phone}.\n"
         "\n"
         "Your reference: {request_id}\n"
         "Please mention this reference if you contact us about this message.\n"
@@ -434,10 +435,10 @@ TEMPLATES = {
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
-        "Copyright © 2026 Jaro Accounting. All rights reserved.\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
+        "Copyright © 2026 {contact_business_name}. All rights reserved.\n"
         "\n"
         "The information transmitted is intended only for the person or\n"
         "entity to which it is addressed and may contain confidential and/or\n"
@@ -462,7 +463,7 @@ TEMPLATES = {
         "\n"
         "---\n"
         "This notice is for Jared only.\n"
-        "Jaro Accounting · 1238855 BC LTD",
+        "{contact_business_line}",
     ),
     "document_shared": (
         "Jaro Accounting shared a document with you — {filename}",
@@ -478,18 +479,18 @@ TEMPLATES = {
         "Sign in to the portal to view and download it.\n"
         "\n"
         "If you have any questions, please contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or call 1-(778)-227-4891.\n"
+        "{contact_email} or call {contact_phone}.\n"
         "\n"
         "If you weren't expecting this email, please don't click any links —\n"
-        "contact Jared Robbins directly at jared@jaroaccounting.com.\n"
+        "contact Jared Robbins directly at {contact_email}.\n"
         "\n"
         "Sincerely,\n"
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
         "Copyright © 2026 Jaro Accounting. All rights reserved.",
     ),
     "filing_status_changed": (
@@ -504,15 +505,15 @@ TEMPLATES = {
         "Sign in to the portal to see the full filing timeline.\n"
         "\n"
         "If you have any questions, please contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or call 1-(778)-227-4891.\n"
+        "{contact_email} or call {contact_phone}.\n"
         "\n"
         "Sincerely,\n"
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
         "Copyright © 2026 Jaro Accounting. All rights reserved.",
     ),
     "invoice_issued": (
@@ -529,22 +530,22 @@ TEMPLATES = {
         "Sign in to the portal to view the invoice and download the PDF.\n"
         "\n"
         # "To pay" block mirrors portal.INVOICE_PAYMENT_INSTRUCTIONS (D-27;
-        # §3.5 #5, OWNER-REVIEWABLE) — keep the wording identical; the email
-        # template is static text, so it cannot read the constant directly.
-        "To pay: e-transfer to jared@jaroaccounting.com — please include your\n"
+        # §3.5 #5, OWNER-REVIEWABLE) — keep the wording identical; contact
+        # details stay in sync via the {contact_*} placeholders.
+        "To pay: e-transfer to {contact_email} — please include your\n"
         "invoice number with your payment. Cheque also accepted; contact Jared\n"
-        "Robbins at 1-(778)-227-4891 for details.\n"
+        "Robbins at {contact_phone} for details.\n"
         "\n"
         "If you weren't expecting this email, please contact Jared Robbins\n"
-        "directly at jared@jaroaccounting.com.\n"
+        "directly at {contact_email}.\n"
         "\n"
         "Sincerely,\n"
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
         "Copyright © 2026 Jaro Accounting. All rights reserved.",
     ),
     "mfa_sms_fallback": (
@@ -559,7 +560,7 @@ TEMPLATES = {
         "\n"
         "Didn't try to sign in? No action needed — without the code, no one\n"
         "can sign in as you. If you're concerned, contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or 1-(778)-227-4891.\n"
+        "{contact_email} or {contact_phone}.\n"
         "\n"
         "— Jaro Accounting",
     ),
@@ -571,7 +572,7 @@ TEMPLATES = {
 # Phase-0 (subject, body) shape — and its tests — stay untouched.
 TEMPLATE_HEADERS: dict[str, dict[str, str]] = {
     # §4.3: a reply to the receipt lands with Jared, not in a no-reply void.
-    "inquiry_receipt": {"Reply-To": "Jaro Accounting <jared@jaroaccounting.com>"},
+    "inquiry_receipt": {"Reply-To": "{contact_business_name} <{contact_email}>"},
     # Owner notice: Reply-To the guest so Jared can answer in one click.
     # The guest address passed email validation (no whitespace/control
     # chars), so it is header-safe; it is the address the guest entered,
@@ -580,10 +581,26 @@ TEMPLATE_HEADERS: dict[str, dict[str, str]] = {
     # Booking guest mail: a reply lands with Jared, not in a no-reply void
     # (§1.4 consistent From/Reply-To). The owner notice needs no Reply-To
     # override (it goes to Jared himself).
-    "booking_confirmation": {"Reply-To": "Jaro Accounting <jared@jaroaccounting.com>"},
-    "booking_reminder": {"Reply-To": "Jaro Accounting <jared@jaroaccounting.com>"},
-    "booking_cancellation_notice": {"Reply-To": "Jaro Accounting <jared@jaroaccounting.com>"},
+    "booking_confirmation": {"Reply-To": "{contact_business_name} <{contact_email}>"},
+    "booking_reminder": {"Reply-To": "{contact_business_name} <{contact_email}>"},
+    "booking_cancellation_notice": {"Reply-To": "{contact_business_name} <{contact_email}>"},
 }
+
+
+def _contact_template_vars() -> dict:
+    """Contact placeholders available in every template (single source of
+    truth: app/site_contact.py). Update the phone / email / address there to
+    change every email footer at once."""
+    c = SITE_CONTACT
+    return {
+        "contact_business_name": c["business_name"],
+        "contact_legal_name": c["legal_name"],
+        "contact_business_line": f"{c['business_name']} \u00b7 {c['legal_name']}",
+        "contact_email": c["email"],
+        "contact_phone": c["phone_display"],
+        "contact_address_1line": address_1line(),
+        "contact_website": c["website"],
+    }
 
 
 def render_template(kind: str, snapshot: dict) -> RenderedMail:
@@ -593,6 +610,7 @@ def render_template(kind: str, snapshot: dict) -> RenderedMail:
         return _render_invite(fields)
     subject_tpl, body_tpl = TEMPLATES[kind]  # KeyError on unknown kind: fail loudly
     safe = _SafeDict(fields)
+    safe.update(_contact_template_vars())
     headers = {k: v.format_map(safe) for k, v in TEMPLATE_HEADERS.get(kind, {}).items()}
     return RenderedMail(
         to=fields.get("destination", ""),
@@ -648,6 +666,19 @@ def render_invite_html(fields: dict) -> str:
     out = out.replace("{{EXPIRY_DAYS}}", html.escape(str(fields.get("expiry_days", "7"))))
     # D-29: the portal name is parameterized — a rename is one change.
     out = out.replace("myJaro", html.escape(portal_name))
+    # Contact details are parameterized too (single source of truth:
+    # app/site_contact.py) — a phone / email / address change is one edit.
+    c = SITE_CONTACT
+    out = out.replace("{{CONTACT_BUSINESS_NAME}}", html.escape(c["business_name"]))
+    out = out.replace("{{CONTACT_LEGAL_NAME}}", html.escape(c["legal_name"]))
+    out = out.replace("{{CONTACT_EMAIL}}", html.escape(c["email"]))
+    out = out.replace("{{CONTACT_PHONE}}", html.escape(c["phone_display"]))
+    out = out.replace("{{CONTACT_PHONE_TEL}}", html.escape(c["phone_tel"]))
+    out = out.replace("{{CONTACT_STREET}}", html.escape(c["street"]))
+    out = out.replace("{{CONTACT_CITY}}", html.escape(c["city"]))
+    out = out.replace("{{CONTACT_REGION}}", html.escape(c["region"]))
+    out = out.replace("{{CONTACT_POSTAL}}", html.escape(c["postal"]))
+    out = out.replace("{{CONTACT_WEBSITE}}", html.escape(c["website"]))
     return out
 
 
@@ -672,20 +703,20 @@ def _render_invite_text(fields: dict) -> str:
         f"Your username is: {fields.get('client_email', '')}\n"
         "\n"
         "If you have any questions or concerns, please contact Jared Robbins at\n"
-        "jared@jaroaccounting.com or call 1-(778)-227-4891.\n"
+        f"{SITE_CONTACT['email']} or call {SITE_CONTACT['phone_display']}.\n"
         "\n"
         "If you weren't expecting this email, please don't click the link -- contact\n"
-        "Jared Robbins directly at jared@jaroaccounting.com and let him know. We'll\n"
+        f"Jared Robbins directly at {SITE_CONTACT['email']} and let him know. We'll\n"
         "never ask for your password by email or phone.\n"
         "\n"
         "Sincerely,\n"
         "Jaro Accounting\n"
         "\n"
         "---\n"
-        "Jaro Accounting · 1238855 BC LTD\n"
-        "215 Mowat Street, New Westminster, BC V3M 4B1\n"
-        "jaroaccounting.com\n"
-        "Copyright © 2026 Jaro Accounting. All rights reserved.\n"
+        "{contact_business_line}\n"
+        "{contact_address_1line}\n"
+        "{contact_website}\n"
+        "Copyright © 2026 {contact_business_name}. All rights reserved.\n"
         "\n"
         "The information transmitted is intended only for the person or entity to which\n"
         "it is addressed and may contain confidential and/or privileged material. Any\n"
@@ -702,6 +733,6 @@ def _render_invite(fields: dict) -> RenderedMail:
         to=fields.get("destination", ""),
         subject=f"You're invited to {portal_name} — set your password",
         text_body=_render_invite_text(fields),
-        headers={"Reply-To": "Jaro Accounting <jared@jaroaccounting.com>"},
+        headers={"Reply-To": f"{SITE_CONTACT['business_name']} <{SITE_CONTACT['email']}>",},
         html_body=render_invite_html(fields),
     )

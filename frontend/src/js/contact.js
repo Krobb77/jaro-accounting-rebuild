@@ -213,7 +213,7 @@ function wireContactForm(form) {
     // field values stay intact.
     const items = [
       {
-        text: "Something went wrong on our end — your message was not received. You can try again, or call us at 1-(778)-227-4891.",
+        text: "Something went wrong on our end — your message was not received. You can try again, or call us at [[contact.phone]].",
       },
     ];
     if (err.requestId) {

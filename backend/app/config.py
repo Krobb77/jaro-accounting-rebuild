@@ -13,6 +13,11 @@ import base64
 import os
 from dataclasses import dataclass, field
 
+from .site_contact import sender_address
+
+# Default sender address — single source of truth is app/site_contact.py.
+DEFAULT_FROM_ADDRESS = sender_address()
+
 MODES = ("development", "staging", "production", "test")
 WORKLOADS = ("web", "worker", "migrate")
 EXPECTED_ROLES = {"web": "jaro_web", "worker": "jaro_worker", "migrate": "jaro_migrate"}
@@ -116,7 +121,7 @@ class SmtpSettings:
     username: str = ""
     password: str | None = None
     use_tls: bool = True
-    from_address: str = "Jaro Accounting <jared@jaroaccounting.com>"
+    from_address: str = DEFAULT_FROM_ADDRESS  # single source of truth: app/site_contact.py
 
 
 @dataclass

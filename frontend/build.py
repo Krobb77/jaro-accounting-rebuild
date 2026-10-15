@@ -101,9 +101,54 @@ PORTAL_NAME = "myJaro"
 # Jared can switch to "Video Call" later by editing this one constant.
 EVENT_CHANNEL_LABEL = "Phone Call"
 
+# ---------------------------------------------------------------------------
+# Contact information — single source of truth (2026-10-15).
+# All public contact details (phone, email, address, hours) live in
+# src/data/site-contact.json. The build injects them wherever a
+# [[contact.*]] token appears (page bodies, frontmatter, partials,
+# JSON-LD, JS). To update the phone number / email / address site-wide,
+# edit that ONE file and rebuild — never hardcode contact details.
+# The street address is intentionally a placeholder until Jared provides
+# the real one.
+# ---------------------------------------------------------------------------
+
+_CONTACT_PATH = DATA_DIR / "site-contact.json"
+
+
+def _load_site_contact() -> dict[str, str]:
+    try:
+        raw = json.loads(_CONTACT_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"site-contact.json is missing or invalid: {exc}") from exc
+    contact = {k: v for k, v in raw.items() if not k.startswith("_")}
+    required = ("email", "phone_display", "phone_tel", "street", "city",
+                "region", "postal", "country")
+    missing = [k for k in required if not contact.get(k)]
+    if missing:
+        raise ValueError(f"site-contact.json missing required keys: {missing}")
+    return contact
+
+
+SITE_CONTACT = _load_site_contact()
+
 _SITE_TOKENS = {
     "[[portal_name]]": PORTAL_NAME,
     "[[event_channel]]": EVENT_CHANNEL_LABEL,
+    # Contact tokens — one edit in site-contact.json updates the whole site.
+    "[[contact.email]]": SITE_CONTACT["email"],
+    "[[contact.phone]]": SITE_CONTACT["phone_display"],
+    "[[contact.phone_tel]]": SITE_CONTACT["phone_tel"],
+    "[[contact.street]]": SITE_CONTACT["street"],
+    "[[contact.city]]": SITE_CONTACT["city"],
+    "[[contact.region]]": SITE_CONTACT["region"],
+    "[[contact.postal]]": SITE_CONTACT["postal"],
+    "[[contact.country]]": SITE_CONTACT["country"],
+    "[[contact.website]]": SITE_CONTACT["website"],
+    "[[contact.business_name]]": SITE_CONTACT["business_name"],
+    "[[contact.legal_name]]": SITE_CONTACT["legal_name"],
+    "[[contact.hours_short]]": SITE_CONTACT["hours_short"],
+    "[[contact.hours_weekdays]]": SITE_CONTACT["hours_weekdays"],
+    "[[contact.hours_saturday]]": SITE_CONTACT["hours_saturday"],
 }
 
 
@@ -297,6 +342,9 @@ def load_jsonld(name: str) -> str:
     """Read src/partials/jsonld/<name>.json, validate it, wrap in a script tag."""
     path = JSONLD_DIR / name
     text = path.read_text(encoding="utf-8")
+    # Contact tokens (e.g. [[contact.street]]) expand BEFORE validation —
+    # the JSON-LD carries the firm's address/phone and must stay in sync.
+    text = expand_site_tokens(text)
     try:
         json.loads(text)  # fail-closed: invalid JSON-LD aborts the build
     except json.JSONDecodeError as exc:
@@ -363,7 +411,9 @@ def parse_page(path: Path) -> tuple[dict[str, str], str]:
 
 
 def load_partial(name: str) -> str:
-    return (PARTIALS_DIR / name).read_text(encoding="utf-8")
+    # Contact/site tokens expand in partials too (footer/header carry the
+    # address, phone, and email) — one edit in site-contact.json updates them.
+    return expand_site_tokens((PARTIALS_DIR / name).read_text(encoding="utf-8"))
 
 
 def apply_nav_active(header: str, active: str) -> str:
@@ -438,6 +488,15 @@ def build(out_dir: Path, *, clean: bool = True) -> list[Path]:
         if dest.exists():
             shutil.rmtree(dest)
         shutil.copytree(tree, dest)
+        # JS is copied verbatim except for site/contact token expansion —
+        # a few scripts embed the phone number in user-facing messages, and
+        # those must stay in sync with site-contact.json too.
+        if tree is JS_DIR:
+            for js_file in sorted(dest.rglob("*.js")):
+                js_file.write_text(
+                    expand_site_tokens(js_file.read_text(encoding="utf-8")),
+                    encoding="utf-8",
+                )
         emitted.extend(sorted(dest.rglob("*")))
 
     return emitted

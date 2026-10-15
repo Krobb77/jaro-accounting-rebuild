@@ -310,13 +310,6 @@ def _owner_headers(app, owner_id):
     return {"Cookie": f"{sessions_lib.COOKIE_NAME}={raw}"}
 
 
-def _totp_pair(secret: str):
-    from app import totp as totp_lib
-
-    t = int(time.time() // 30) * 30 + 15
-    return totp_lib.code_at(secret, for_time=t), totp_lib.code_at(secret, for_time=t + 30)
-
-
 def _read_manual_key(page, timeout=15000):
     """Read the TOTP manual key, waiting for the async /2fa/enroll call.
 
@@ -332,10 +325,12 @@ def _read_manual_key(page, timeout=15000):
     return page.text_content("#totp-manual-key").strip().replace(" ", "")
 
 
-def _create_invite(base, headers, email, name="Journey Client", phone=None):
+def _create_invite(base, headers, email, name="Journey Client", phone=None,
+                 temp_password="Journey-TempPass-01"):
+    """Owner provisions a client with a temporary password (no email sent)."""
     import httpx
 
-    body = {"client_name": name, "email": email}
+    body = {"client_name": name, "email": email, "temp_password": temp_password}
     if phone:
         body["phone_e164"] = phone
     c = httpx.Client(trust_env=False, base_url=base, timeout=15)
@@ -347,11 +342,8 @@ def _create_invite(base, headers, email, name="Journey Client", phone=None):
         )
         assert r.status_code == 201, r.text
         data = r.json()
-        # Raw token from the accept_url (the outbox also carries it, but the
-        # API response is the race-free source for the journey).
-        m = re.search(r"token=([A-Za-z0-9_-]{43})", data["accept_url"])
-        assert m, "invite response has no token"
-        return data["id"], m.group(1)
+        assert data["status"] == "accepted"
+        return data["id"], data["user_id"]
     finally:
         c.close()
 
@@ -362,28 +354,34 @@ def _create_invite(base, headers, email, name="Journey Client", phone=None):
 
 
 def test_portal_first_run_desktop(live_server, browser):
+    """First-run (desktop): owner provisions with a temp password -> client
+    signs in -> forced password-change screen -> terms modal -> dashboard."""
     base, db_path, app = live_server
     owner_id = _make_owner(app)
     oheaders = _owner_headers(app, owner_id)
 
     email = "first.run@example.com"
-    _, token = _create_invite(base, oheaders, email)
+    temp_password = "Journey-TempPass-02"
+    _create_invite(base, oheaders, email, temp_password=temp_password)
 
     ctx = browser.new_context(viewport={"width": 1280, "height": 900})
     page = ctx.new_page()
     try:
-        # --- accept: verify shows masked email, no oracle ---
-        page.goto(f"{base}/portal/accept/?token={token}")
-        page.wait_for_selector("#accept-form:not([hidden])", timeout=15000)
-        welcome = page.text_content("#accept-welcome")
-        assert "first.run" not in welcome or "…" in welcome or "@" in welcome
-        assert email not in welcome  # masked, never the full address
+        # --- login with the temporary password ---
+        page.goto(f"{base}/portal/login/")
+        page.wait_for_selector("#login-form:not([hidden])", timeout=15000)
+        page.fill("#login-email", email)
+        page.fill("#login-password", temp_password)
+        page.click("#login-submit")
+        # Temp password -> forced-change form appears (no navigation).
+        page.wait_for_selector("#change-password-form:not([hidden])", timeout=15000)
+        assert page.is_visible("#change-password-heading")
 
-        # --- set-password ---
-        page.fill("#accept-password", "correct horse battery staple 123")
-        page.fill("#accept-password2", "correct horse battery staple 123")
-        page.click("#accept-submit")
-        # set-password signs the client in and lands on the dashboard
+        # --- choose own password ---
+        page.fill("#new-password", "Journey-Own-Password-03")
+        page.fill("#new-password-confirm", "Journey-Own-Password-03")
+        page.click("#change-password-submit")
+        # Forced change done -> lands on the dashboard with the terms modal.
         page.wait_for_url(f"{base}/portal/?first=1", timeout=15000)
 
         # --- terms modal: no dismiss, Accept or Sign out ---
@@ -392,22 +390,6 @@ def test_portal_first_run_desktop(live_server, browser):
         assert page.is_visible("#terms-signout")
         page.click("#terms-accept")
         page.wait_for_selector("#terms-modal", state="hidden", timeout=15000)
-
-        # --- TOTP enrollment: manual key + two consecutive codes ---
-        page.wait_for_selector("#totp-modal:not([hidden])", timeout=15000)
-        manual_key = _read_manual_key(page)
-        code1, code2 = _totp_pair(manual_key)
-        page.fill("#totp-code1", code1)
-        page.fill("#totp-code2", code2)
-        page.click("#totp-confirm")
-        page.wait_for_selector("#totp-step-recovery:not([hidden])", timeout=15000)
-        recovery = page.eval_on_selector_all(
-            "#totp-recovery-list code", "els => els.map(e => e.textContent)"
-        )
-        assert len(recovery) == 10
-        page.check("#totp-recovery-saved")
-        page.click("#totp-done")
-        page.wait_for_selector("#totp-modal", state="hidden", timeout=15000)
 
         # --- dashboard greeting ---
         page.wait_for_selector("#portal-root h1", timeout=15000)
@@ -419,107 +401,67 @@ def test_portal_first_run_desktop(live_server, browser):
         ctx.close()
 
 
-# ----------------------------------------------------------------------
-# Journey 2: upload → Jared sees → share → download
-# ----------------------------------------------------------------------
-
 
 def _onboard_client_api(base, app, db_path, email, name="Journey Client"):
     """Onboard a client fully via the API; returns (user_id, cheaders, oheaders)."""
     import httpx
 
+    temp_password = "Journey-TempPass-04"
+    new_password = "Journey-Own-Password-05"
     owner_id = _make_owner(app, email=f"owner.{email}")
     oheaders = _owner_headers(app, owner_id)
-    _, token = _create_invite(base, oheaders, email, name=name)
+    _, user_id = _create_invite(base, oheaders, email, name=name,
+                                temp_password=temp_password)
     from app import sessions as sessions_lib
 
     c = httpx.Client(trust_env=False, base_url=base, timeout=15)
     try:
-        r = c.post("/api/v1/portal/invitations/verify", json={"token": token})
-        assert r.status_code == 200, r.text
-        r = c.post(
-            "/api/v1/portal/invitations/set-password",
-            json={"token": token, "password": "correct horse battery staple 123"},
-            headers={"Idempotency-Key": f"onboard-{email}-{int(time.time())}"},
-        )
-        assert r.status_code == 201, r.text
+        # Login with temp password -> forced change.
+        r = c.post("/api/v1/portal/login",
+                   json={"email": email, "password": temp_password})
+        assert r.status_code == 202, r.text
+        assert r.json()["next"] == "change_password"
         m = re.search(
             rf"{re.escape(sessions_lib.COOKIE_NAME)}=([^;]+)",
             r.headers.get("set-cookie", ""),
         )
         assert m
         cheaders = {"Cookie": f"{sessions_lib.COOKIE_NAME}={m.group(1)}"}
-        # terms
+        r = c.post("/api/v1/portal/password/change",
+                   json={"new_password": new_password}, headers=cheaders)
+        assert r.status_code == 200, r.text
+        m = re.search(
+            rf"{re.escape(sessions_lib.COOKIE_NAME)}=([^;]+)",
+            r.headers.get("set-cookie", ""),
+        )
+        assert m, "password change did not rotate the session"
+        cheaders = {"Cookie": f"{sessions_lib.COOKIE_NAME}={m.group(1)}"}
+        # Terms.
         r = c.get("/api/v1/portal/terms/current", headers=cheaders)
         assert r.status_code == 200, f"terms/current failed: {r.status_code} {r.text}"
         vh = r.json()["version_hash"]
         r = c.post("/api/v1/portal/terms/accept", json={"version_hash": vh}, headers=cheaders)
         assert r.status_code == 200, r.text
-        # TOTP enroll
-        r = c.post("/api/v1/portal/2fa/enroll", headers=cheaders)
-        assert r.status_code == 200, r.text
-        secret = r.json()["manual_key"]
-        code1, code2 = _totp_pair(secret)
-        r = c.post(
-            "/api/v1/portal/2fa/confirm",
-            json={"code": code1, "code2": code2},
-            headers=cheaders,
-        )
-        assert r.status_code == 200, r.text
-        conn = sqlite3.connect(db_path)
-        try:
-            row = conn.execute(
-                "SELECT id FROM portal_users WHERE email=?", (email,)
-            ).fetchone()
-        finally:
-            conn.close()
-        return row[0], cheaders, oheaders
+        return user_id, cheaders, oheaders
     finally:
         c.close()
 
 
-def _unseal_totp_secret(app, user_id: str) -> str:
-    """Unseal the enrolled TOTP secret with the test KEK (test-only)."""
-    from sqlalchemy.orm import sessionmaker
 
-    from app import secretbox as secretbox_lib
-    from app.models import PortalUser
-
-    Session = sessionmaker(bind=app.state.engine, autoflush=False, expire_on_commit=False)
-    db = Session()
-    try:
-        user = db.get(PortalUser, user_id)
-        assert user.totp_secret_enc is not None
-        return secretbox_lib.unseal(
-            app.state.settings.totp_kek, bytes(user.totp_secret_enc)).decode("ascii")
-    finally:
-        db.close()
-
-
-def _browser_login(page, base, email, password, totp_secret):
-    """Full browser login: password → TOTP code → dashboard."""
+def _browser_login(page, base, email, password):
+    """Sign in through the login page (direct password login, no 2FA)."""
     page.goto(f"{base}/portal/login/")
+    page.wait_for_selector("#login-form:not([hidden])", timeout=15000)
     page.fill("#login-email", email)
     page.fill("#login-password", password)
     page.click("#login-submit")
-    try:
-        page.wait_for_selector("#mfa-form:not([hidden])", timeout=15000)
-    except Exception:
-        # Diagnostic: surface the login error if the MFA form never appeared.
-        err_text = page.text_content("#login-error") or "(no error text)"
-        raise AssertionError(f"login MFA form never appeared; error was: {err_text}")
-    from app import totp as totp_lib
-
-    page.fill("#mfa-code", totp_lib.code_at(totp_secret))
-    page.click("#mfa-submit")
-    page.wait_for_url(f"{base}/portal/", timeout=15000)
+    page.wait_for_url(f"{base}/portal/*", timeout=15000)
 
 
 def test_portal_vault_round_trip(live_server, browser):
     base, db_path, app = live_server
     email = "vault.client@example.com"
     client_id, cheaders, oheaders = _onboard_client_api(base, app, db_path, email)
-    totp_secret = _unseal_totp_secret(app, client_id)
 
     import httpx
 
@@ -530,7 +472,7 @@ def test_portal_vault_round_trip(live_server, browser):
         ctx = browser.new_context(viewport={"width": 1280, "height": 900})
         page = ctx.new_page()
         try:
-            _browser_login(page, base, email, "correct horse battery staple 123", totp_secret)
+            _browser_login(page, base, email, "Journey-Own-Password-05")
             page.goto(f"{base}/portal/documents/")
             page.wait_for_selector("#upload-form", timeout=15000)
             import tempfile
@@ -576,13 +518,11 @@ def test_portal_vault_round_trip(live_server, browser):
         dl = httpx.Client(trust_env=False, base_url=base, timeout=15)
         try:
             # fresh login for a download-capable session
-            r = c.post("/api/v1/portal/login", json={"email": email, "password": "correct horse battery staple 123"})
-            challenge = r.json()["challenge_id"]
-            from app import totp as totp_lib
-
-            r = c.post("/api/v1/portal/login/2fa", json={"challenge_id": challenge, "code": totp_lib.code_at(totp_secret)})
-            assert r.status_code == 200, r.text
+            r = c.post("/api/v1/portal/login",
+                       json={"email": email, "password": "Journey-Own-Password-05"})
+            assert r.status_code == 202, r.text
             m = re.search(rf"{re.escape(sessions_lib.COOKIE_NAME)}=([^;]+)", r.headers.get("set-cookie", ""))
+            assert m
             dl.cookies.set(sessions_lib.COOKIE_NAME, m.group(1))
             r = dl.get(f"/api/v1/portal/documents/{doc_id}/download")
             assert r.status_code == 200, r.text
@@ -603,7 +543,6 @@ def test_portal_filing_lifecycle(live_server, browser):
     base, db_path, app = live_server
     email = "filing.client@example.com"
     client_id, cheaders, oheaders = _onboard_client_api(base, app, db_path, email)
-    totp_secret = _unseal_totp_secret(app, client_id)
 
     import httpx
 
@@ -628,7 +567,7 @@ def test_portal_filing_lifecycle(live_server, browser):
         ctx = browser.new_context(viewport={"width": 1280, "height": 900})
         page = ctx.new_page()
         try:
-            _browser_login(page, base, email, "correct horse battery staple 123", totp_secret)
+            _browser_login(page, base, email, "Journey-Own-Password-05")
             page.goto(f"{base}/portal/filings/")
             page.wait_for_selector(".timeline", timeout=15000)
             body = page.text_content("#filings-root") or ""
@@ -693,13 +632,12 @@ def test_portal_session_warning_and_extend(live_server, browser):
     base, db_path, app = live_server
     email = "session.client@example.com"
     client_id, cheaders, oheaders = _onboard_client_api(base, app, db_path, email)
-    totp_secret = _unseal_totp_secret(app, client_id)
 
     # Log in via the browser.
     ctx = browser.new_context(viewport={"width": 1280, "height": 900})
     page = ctx.new_page()
     try:
-        _browser_login(page, base, email, "correct horse battery staple 123", totp_secret)
+        _browser_login(page, base, email, "Journey-Own-Password-05")
         page.goto(f"{base}/portal/documents/")
         page.wait_for_selector("#upload-form", timeout=15000)
 
@@ -744,12 +682,16 @@ def test_portal_session_warning_and_extend(live_server, browser):
 
 
 def test_portal_first_run_phone(live_server, browser):
+    """First-run core path on a mobile viewport: temp-password login ->
+    forced change -> terms -> dashboard, no horizontal overflow."""
     base, db_path, app = live_server
     owner_id = _make_owner(app, email="jared.phone@example.com")
     oheaders = _owner_headers(app, owner_id)
 
     email = "phone.client@example.com"
-    _, token = _create_invite(base, oheaders, email, name="Phone Client")
+    temp_password = "Journey-TempPass-06"
+    _create_invite(base, oheaders, email, name="Phone Client",
+                   temp_password=temp_password)
 
     ctx = browser.new_context(
         viewport={"width": 390, "height": 844},
@@ -759,23 +701,18 @@ def test_portal_first_run_phone(live_server, browser):
     )
     page = ctx.new_page()
     try:
-        page.goto(f"{base}/portal/accept/?token={token}")
-        page.wait_for_selector("#accept-form:not([hidden])", timeout=15000)
-        page.fill("#accept-password", "correct horse battery staple 123")
-        page.fill("#accept-password2", "correct horse battery staple 123")
-        page.click("#accept-submit")
+        page.goto(f"{base}/portal/login/")
+        page.wait_for_selector("#login-form:not([hidden])", timeout=15000)
+        page.fill("#login-email", email)
+        page.fill("#login-password", temp_password)
+        page.click("#login-submit")
+        page.wait_for_selector("#change-password-form:not([hidden])", timeout=15000)
+        page.fill("#new-password", "Journey-Own-Password-07")
+        page.fill("#new-password-confirm", "Journey-Own-Password-07")
+        page.click("#change-password-submit")
         page.wait_for_url(f"{base}/portal/?first=1", timeout=15000)
         page.wait_for_selector("#terms-modal:not([hidden])", timeout=15000)
         page.click("#terms-accept")
-        page.wait_for_selector("#totp-modal:not([hidden])", timeout=15000)
-        manual_key = _read_manual_key(page)
-        code1, code2 = _totp_pair(manual_key)
-        page.fill("#totp-code1", code1)
-        page.fill("#totp-code2", code2)
-        page.click("#totp-confirm")
-        page.wait_for_selector("#totp-step-recovery:not([hidden])", timeout=15000)
-        page.check("#totp-recovery-saved")
-        page.click("#totp-done")
         page.wait_for_selector("#portal-root h1", timeout=15000)
 
         # no horizontal overflow on the phone viewport

@@ -9,6 +9,8 @@ request by the RequestIDMiddleware.
 from __future__ import annotations
 
 from fastapi import Request
+
+from .site_contact import SITE_CONTACT
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -20,7 +22,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 # hold wording — the ERROR_CATALOG entry below references it.
 BOOKING_HOLD_MESSAGE = (
     "We couldn't complete this booking automatically — "
-    "please call 1-(778)-227-4891."
+    f"please call {SITE_CONTACT['phone_display']}."
 )
 
 # code -> (http status, default message). This catalog is the single source
@@ -49,7 +51,7 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
     "calendar_unavailable": (
         503,
         "Live availability is temporarily unavailable. Please try again shortly "
-        "or call 1-(778)-227-4891.",
+        f"or call {SITE_CONTACT['phone_display']}.",
     ),
     "conflict": (409, "The request conflicts with the current state."),
     "gone": (410, "The requested resource is no longer available."),
@@ -87,16 +89,16 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
     "cancel_too_late": (
         422,
         "It's too late to cancel this booking online — "
-        "please call 1-(778)-227-4891 and we'll help.",
+        f"please call {SITE_CONTACT['phone_display']} and we'll help.",
     ),
     "reschedule_too_late": (
         422,
         "It's too late to reschedule this booking online — "
-        "please call 1-(778)-227-4891 and we'll help.",
+        f"please call {SITE_CONTACT['phone_display']} and we'll help.",
     ),
     "manage_token_expired": (
         410,
-        "This link has expired — please call 1-(778)-227-4891 to rebook.",
+        f"This link has expired — please call {SITE_CONTACT['phone_display']} to rebook.",
     ),
     "booking_not_found": (404, "The requested booking could not be found."),
     "booking_hold": (422, BOOKING_HOLD_MESSAGE),
@@ -109,7 +111,7 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
     "invitation_invalid": (
         410,
         "This invitation link is invalid or has expired. Please contact "
-        "Jared Robbins at jared@jaroaccounting.com or 1-(778)-227-4891 "
+        f"Jared Robbins at {SITE_CONTACT['email']} or {SITE_CONTACT['phone_display']} "
         "for a new invitation.",
     ),
     "invitation_active": (
@@ -138,17 +140,15 @@ ERROR_CATALOG: dict[str, tuple[int, str]] = {
         "This sign-in attempt has expired or was already used. "
         "Please sign in again.",
     ),
-    "sms_not_configured": (
-        409,
-        "Text-message codes aren't set up for this account — "
-        "contact Jared Robbins at jared@jaroaccounting.com or 1-(778)-227-4891.",
-    ),
     "totp_required": (
         403,
         "Two-step verification setup is required before you can continue.",
     ),
+    "password_change_required": (
+        403,
+        "You need to set your own password before you can continue.",
+    ),
     "totp_already_enrolled": (409, "Two-step verification is already set up."),
-    "totp_not_enrolled": (409, "Two-step verification is not set up."),
     "reset_invalid": (
         410,
         "This reset link is invalid or has expired. Request a new one below.",

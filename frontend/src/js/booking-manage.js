@@ -36,7 +36,7 @@ function genericNotFound() {
       <p class="notice-title">This link isn't valid</p>
       <p class="notice-text">The link may have expired, or the booking may have been
       cancelled or rescheduled (each change issues a new link). Check your latest
-      confirmation email, or call <a href="tel:+17782274891">1-(778)-227-4891</a>
+      confirmation email, or call <a href="tel:[[contact.phone_tel]]">[[contact.phone]]</a>
       and we'll sort it out.</p>
     </div>`;
 }
@@ -59,7 +59,7 @@ function renderBooking() {
   const cutoffLine = (canReschedule || canCancel)
     ? `<p class="microcopy">Changes are free until 24 hours before your appointment.</p>`
     : `<p class="microcopy">This appointment is within 24 hours — to change it, ` +
-      `please call <a href="tel:+17782274891">1-(778)-227-4891</a>.</p>`;
+      `please call <a href="tel:[[contact.phone_tel]]">[[contact.phone]]</a>.</p>`;
   root.innerHTML = `
     <dl class="bw-review">
       <div><dt>Reference</dt><dd><strong>${esc(booking.reference)}</strong></dd></div>
@@ -261,7 +261,7 @@ async function submitCancel() {
         <p class="notice-title">Booking cancelled</p>
         <p class="notice-text">Reference <strong>${esc(body.reference)}</strong> has been cancelled.
         A cancellation notice is queued to your email. We'd still love to talk — call
-        <a href="tel:+17782274891">1-(778)-227-4891</a> to rebook whenever you're ready.</p>
+        <a href="tel:[[contact.phone_tel]]">[[contact.phone]]</a> to rebook whenever you're ready.</p>
       </div>`;
   } catch (err) {
     showError(err instanceof ApiRequestError ? err.message : "Couldn't cancel the booking.");

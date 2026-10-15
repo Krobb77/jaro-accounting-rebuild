@@ -13,6 +13,7 @@ from pydantic_core import PydanticCustomError
 from sqlalchemy import text
 
 from .. import idempotency as idem
+from ..site_contact import SITE_CONTACT
 from .. import outbox as outbox_lib
 from .. import refnums
 from ..db import new_uuid7, utcnow
@@ -29,7 +30,7 @@ _readyz_lock = threading.Lock()
 
 # Owner-notice destination (Jared only — the full guest message never goes
 # anywhere else).
-OWNER_NOTICE_DESTINATION = "jared@jaroaccounting.com"
+OWNER_NOTICE_DESTINATION = SITE_CONTACT["email"]  # single source of truth: app/site_contact.py
 
 # EMAIL_TEMPLATES §4.2 {{RESPONSE_SLA}}: suggested default, a business
 # commitment — pending Jared's confirmation (D-33, IMPLEMENTATION_PLAN

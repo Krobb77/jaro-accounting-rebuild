@@ -28,6 +28,7 @@ from sqlalchemy import func, select
 from . import advisory, codes, outbox, refnums, tokens
 from .db import constant_time_compare, new_uuid7, sha256_hex, utcnow
 from .errors import ApiError
+from .site_contact import SITE_CONTACT
 from .models import AvailabilityRule, Booking, CalendarBlock, EventType, SmsCode
 
 # Canonical constants (IMPLEMENTATION_PLAN D-47–D-52; §3.5 #7–13 owner
@@ -50,8 +51,8 @@ NO_SHOW_HOLD_COUNT = 2  # D-22 (threshold pending Jared, §3.5 #8)
 NO_SHOW_WINDOW = timedelta(days=365)
 CALENDAR_SOURCE = "jared_calendar"
 
-OWNER_PHONE_DISPLAY = "1-(778)-227-4891"
-OWNER_EMAIL = "jared@jaroaccounting.com"
+OWNER_PHONE_DISPLAY = SITE_CONTACT["phone_display"]  # single source of truth: app/site_contact.py
+OWNER_EMAIL = SITE_CONTACT["email"]  # single source of truth: app/site_contact.py
 SITE_ORIGIN = "https://jaroaccounting.com"
 
 ACTIVE_SLOT_STATUSES = ("pending_verification", "confirmed")

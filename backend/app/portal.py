@@ -37,6 +37,7 @@ from . import (
     totp,
 )
 from .db import constant_time_compare, hmac_hex, new_uuid7, sha256_hex, utcnow
+from .site_contact import SITE_CONTACT
 from .errors import ApiError
 from .models import (
     AuditLog,
@@ -70,8 +71,10 @@ PORTAL_NAME = "myJaro"  # D-29 default — parameterized, rename is one change
 SITE_ORIGIN = "https://jaroaccounting.com"
 FIRM_TZ = ZoneInfo("America/Vancouver")
 SESSION_IDLE_SECONDS = 900
-OWNER_EMAIL = "jared@jaroaccounting.com"
-OWNER_PHONE_DISPLAY = "1-(778)-227-4891"
+# Contact details: single source of truth in app/site_contact.py — update
+# the phone / email / address there to change them everywhere at once.
+OWNER_EMAIL = SITE_CONTACT["email"]
+OWNER_PHONE_DISPLAY = SITE_CONTACT["phone_display"]
 
 BOOTSTRAP_MARKER = "owner_bootstrap"
 
@@ -121,9 +124,9 @@ INVOICE_TAX_LABEL = _env_str("JARO_INVOICE_TAX_LABEL", "GST")  # GST only — no
 # non-goal 3); Jared supplies specifics directly.
 INVOICE_PAYMENT_INSTRUCTIONS = _env_str(
     "JARO_INVOICE_PAYMENT_INSTRUCTIONS",
-    "Pay by e-transfer to jared@jaroaccounting.com — please include your "
+    "Pay by e-transfer to " + SITE_CONTACT["email"] + " — please include your "
     "invoice number with your payment. Cheque also accepted; contact Jared "
-    "Robbins at 1-(778)-227-4891 for details.",
+    "Robbins at " + SITE_CONTACT["phone_display"] + " for details.",
 )
 
 # Owner-question decision (D-26; IMPLEMENTATION_PLAN §3.5 #14):
@@ -333,6 +336,7 @@ def create_invitation(
     email: str,
     phone_e164: str | None,
     note: str | None,
+    temp_password: str,
     idem_key: str,
     request_id: str,
 ) -> dict:
@@ -348,6 +352,9 @@ def create_invitation(
             "validation_failed",
             fields=[{"field": "client_name", "message": "Please enter the client's name."}],
         )
+    # Jared sets the temporary password (communicated by Jared himself);
+    # the client must replace it on first login.
+    check_password_policy(temp_password)
     if phone_e164 and not _E164_RE.match(phone_e164.strip()):
         raise ApiError(
             "validation_failed",
@@ -364,51 +371,42 @@ def create_invitation(
     existing = _find_user_by_email(db, email)
     if existing is not None and existing.role == "client":
         raise ApiError("client_exists")
-    live = (
-        db.execute(
-            select(PortalInvitation).where(
-                func.lower(PortalInvitation.email) == email,
-                PortalInvitation.status.in_(INVITE_LIVE),
-            )
-        )
-        .scalars()
-        .first()
-    )
-    if live is not None:
-        raise ApiError("invitation_active")
-
-    raw = tokens.new_token(32)
     now = utcnow()
+    user = PortalUser(
+        id=new_uuid7(),
+        role="client",
+        email=email,
+        display_name=client_name,
+        password_hash=passwords.hash_password(temp_password),
+        phone_e164=(phone_e164 or "").strip() or None,
+        # No SMS verification anymore (authenticator removed); the number is
+        # contact info only.
+        phone_verified_at=None,
+        status="active",
+        must_change_password=True,
+    )
+    db.add(user)
+    db.flush()
+    # The invitation row is kept as the creation record / audit trail and is
+    # marked accepted immediately — there is no token accept flow anymore.
+    # No outbox intent is staged: Jared emails the temporary password himself.
     row = PortalInvitation(
         id=new_uuid7(),
         email=email,
         client_name=client_name,
         phone_e164=(phone_e164 or "").strip() or None,
         note=(note or "").strip() or None,
-        token_hash=tokens.token_digest(raw),
-        status="created",
+        token_hash=tokens.token_digest(tokens.new_token(32)),
+        status="accepted",
         created_by=owner.id,
         created_at=now,
         expires_at=now + timedelta(days=INVITE_TTL_DAYS),
+        used_at=now,
     )
     db.add(row)
     db.flush()
     db.add(InvitationEvent(invite_id=row.id, event="created", actor="owner", at=now))
-    outbox_lib.stage_intent(
-        db,
-        kind="invite",
-        scope_id=row.id,
-        destination=email,
-        snapshot_fields={
-            "first_name": client_name.split()[0],
-            "client_email": email,
-            "set_password_url": f"{SITE_ORIGIN}/portal/accept?token={raw}",
-            # Cross-workstream contract (IMPLEMENTATION_PLAN §5): the copy
-            # lifetime and the row lifetime are the same constant.
-            "expiry_days": str(INVITE_TTL_DAYS),
-            "portal_name": PORTAL_NAME,
-        },
-    )
+    db.add(InvitationEvent(invite_id=row.id, event="accepted", actor="owner", at=now))
     audit(
         db,
         actor=f"owner:{owner.id}",
@@ -418,16 +416,17 @@ def create_invitation(
         request_id=request_id,
         detail={
             "email_domain": email.split("@")[-1],
+            "user_id": user.id,
             "idempotency_scope": idem.scope_hash("admin.invitations.create", idem_key),
         },
     )
     db.flush()
-    accept_url = f"{SITE_ORIGIN}/portal/accept?token={raw}"
     stored = {
         "id": row.id,
         "email": email,
         "client_name": row.client_name,
-        "status": "created",
+        "status": "accepted",
+        "user_id": user.id,
         "expires_at": utc_iso(row.expires_at),
     }
     idem.store(
@@ -438,7 +437,7 @@ def create_invitation(
         result=stored,
         status_code=201,
     )
-    return {**stored, "accept_url": accept_url}
+    return stored
 
 
 def db_get_invitation(db, invite_id: str) -> PortalInvitation:
@@ -522,177 +521,6 @@ def expire_invite_if_due(db, invite: PortalInvitation, *, actor: str = "system",
     return False
 
 
-def verify_invite(db, raw_token: str, *, request_id: str | None = None) -> PortalInvitation | None:
-    """Token verify with no validity oracle: the caller maps every non-ok
-    outcome to the single safe 410 (AUTH §3.3)."""
-    digest = tokens.token_digest(raw_token)
-    row = (
-        db.execute(select(PortalInvitation).where(PortalInvitation.token_hash == digest))
-        .scalars()
-        .first()
-    )
-    if row is None or not tokens.verify_digest(raw_token, row.token_hash):
-        return None
-    if expire_invite_if_due(db, row, request_id=request_id):
-        return None
-    if row.status not in INVITE_LIVE:
-        return None
-    return row
-
-
-def set_password(
-    db,
-    *,
-    raw_token: str,
-    password: str,
-    idem_key: str,
-    request_id: str,
-    ip: str | None,
-    user_agent: str | None,
-    secret_key: bytes,
-) -> dict:
-    """Atomic invite consume → client account + terms-pending session (A4).
-
-    Advisory-locked on the token digest (F5): concurrent submits serialize;
-    the loser finds the invite accepted → safe 410.
-    """
-    check_password_policy(password)
-    digest = tokens.token_digest(raw_token)
-    # A3: the idempotency check comes FIRST — a double-submit must replay the
-    # stored result even though the token is already consumed.
-    payload = {"token_digest": digest, "password_sha": sha256_hex("jaro-pw-v1", password)}
-    payload_hash = idem.begin(
-        db, route="portal.invitations.set_password", client_key=idem_key, payload=payload
-    )
-    with advisory_lock(db, advisory.advisory_key("invite-consume", digest)):
-        row = (
-            db.execute(select(PortalInvitation).where(PortalInvitation.token_hash == digest))
-            .scalars()
-            .first()
-        )
-        if row is None or not tokens.verify_digest(raw_token, row.token_hash):
-            raise ApiError("invitation_invalid")
-        if expire_invite_if_due(db, row, actor="client", request_id=request_id) or row.status not in INVITE_LIVE:
-            raise ApiError("invitation_invalid")
-        now = utcnow()
-        user = PortalUser(
-            id=new_uuid7(),
-            role="client",
-            email=row.email,
-            display_name=row.client_name,
-            password_hash=passwords.hash_password(password),
-            # D-26 default: Jared-supplied numbers are pre-marked verified
-            # (personally-onboarded roster; trusts owner input) — unless
-            # INVITE_PHONE_REQUIRE_SMS_VERIFY forces the SMS-verify path.
-            phone_e164=row.phone_e164,
-            phone_verified_at=(
-                None
-                if INVITE_PHONE_REQUIRE_SMS_VERIFY
-                else (now if row.phone_e164 else None)
-            ),
-            status="pending_first_login",
-        )
-        db.add(user)
-        db.flush()
-        row.status = "accepted"
-        row.used_at = now
-        db.add(InvitationEvent(invite_id=row.id, event="accepted", actor="client", at=now))
-        raw_session, _session_row = _new_session(
-            db, user_id=user.id, actor=f"client:{user.id}", request_id=request_id,
-            ip=ip, user_agent=user_agent, secret_key=secret_key,
-        )
-        audit(
-            db,
-            actor=f"client:{user.id}",
-            action="invite.accepted",
-            entity_type="portal_invitation",
-            entity_id=row.id,
-            request_id=request_id,
-            detail={"user_id": user.id},
-        )
-        db.flush()
-        stored = {"ok": True, "next": "terms", "session_expires_in_seconds": SESSION_IDLE_SECONDS}
-        idem.store(
-            db,
-            route="portal.invitations.set_password",
-            client_key=idem_key,
-            payload_hash=payload_hash,
-            result=stored,
-            status_code=201,
-        )
-        # The raw session token is set as the cookie on the FIRST response
-        # only — it is never written to the replay record (B6).
-        return {**stored, "_session_raw": raw_session}
-
-
-def resend_invitation(db, *, owner: PortalUser, invite_id: str, idem_key: str, request_id: str) -> dict:
-    """D-01: resend = revoke old + mint new. The old token dies immediately;
-    the new email is a fresh full invitation (never a 'reminder')."""
-    old = db.get(PortalInvitation, invite_id)
-    if old is None:
-        raise ApiError("invitation_not_found")
-    payload = {"invite_id": invite_id}
-    payload_hash = idem.begin(db, route="admin.invitations.resend", client_key=idem_key, payload=payload)
-    with advisory_lock(db, advisory.advisory_key("invite-resend", invite_id)):
-        db.refresh(old)
-        if old.status not in INVITE_LIVE:
-            raise ApiError("invitation_not_active")
-        now = utcnow()
-        raw = tokens.new_token(32)
-        new = PortalInvitation(
-            id=new_uuid7(),
-            email=old.email,
-            client_name=old.client_name,
-            phone_e164=old.phone_e164,
-            note=old.note,
-            token_hash=tokens.token_digest(raw),
-            status="created",
-            created_by=owner.id,
-            created_at=now,
-            expires_at=now + timedelta(days=INVITE_TTL_DAYS),
-        )
-        db.add(new)
-        # Revoke the old BEFORE flushing: the partial unique index on live
-        # email would otherwise see two live invites for the same address.
-        old.status = "revoked"
-        old.revoked_at = now
-        old.revoke_reason = "resend"
-        old.superseded_by = new.id
-        db.flush()
-        db.add(InvitationEvent(invite_id=old.id, event="revoked", actor="owner", at=now, note="superseded by resend"))
-        db.add(InvitationEvent(invite_id=new.id, event="created", actor="owner", at=now, note="resend"))
-        # F2: a queued-but-undispatched intent for the old token is
-        # cancelled — no stale invitation ever goes out.
-        outbox_lib.cancel_pending_intents(db, kind="invite", scope_id=old.id, reason="invitation_resend")
-        outbox_lib.stage_intent(
-            db,
-            kind="invite",
-            scope_id=new.id,
-            destination=new.email,
-            snapshot_fields={
-                "first_name": new.client_name.split()[0],
-                "client_email": new.email,
-                "set_password_url": f"{SITE_ORIGIN}/portal/accept?token={raw}",
-                "expiry_days": str(INVITE_TTL_DAYS),
-                "portal_name": PORTAL_NAME,
-            },
-        )
-        audit(
-            db,
-            actor=f"owner:{owner.id}",
-            action="invite.resent",
-            entity_type="portal_invitation",
-            entity_id=new.id,
-            request_id=request_id,
-            detail={"supersedes": old.id},
-        )
-        db.flush()
-        stored = {**invite_projection(new), "email_status": "queued"}
-        idem.store(
-            db, route="admin.invitations.resend", client_key=idem_key,
-            payload_hash=payload_hash, result=stored, status_code=200,
-        )
-        return {**stored, "accept_url": f"{SITE_ORIGIN}/portal/accept?token={raw}"}
 
 
 def revoke_invitation(
@@ -938,9 +766,17 @@ def owner_verify_totp(
 
 
 def client_login(db, *, email: str, password: str, request_id: str, ip: str | None,
-                 secret_key: bytes) -> dict:
-    """Anti-enumeration credential check (D-38): unknown emails burn a dummy
-    Argon2 verify; both failures return the identical 401."""
+                 user_agent: str | None, secret_key: bytes) -> dict:
+    """Password-only login (2026-10-15 refactor: the authenticator-app / SMS
+    second step was removed — passwords only, per the owner's direction).
+
+    Anti-enumeration credential check (D-38): unknown emails burn a dummy
+    Argon2 verify; both failures return the identical 401.
+
+    A client provisioned with a temporary password (``must_change_password``)
+    gets a session but ``next: "change_password"`` — the ``client()``
+    dependency 403s every portal route until the password is replaced.
+    """
     email_n = (email or "").strip().lower()
     user = _find_user_by_email(db, email_n)
     user = user if (user is not None and user.role == "client") else None
@@ -963,14 +799,89 @@ def client_login(db, *, email: str, password: str, request_id: str, ip: str | No
         raise ApiError("invalid_credentials")
     user.failed_logins = 0
     user.last_login_at = utcnow()
-    challenge = _issue_mfa_challenge(db, user=user, request_id=request_id)
-    methods = ["totp"] + (["sms"] if user.phone_verified_at else [])
+    raw_session, _session_row = _new_session(
+        db, user_id=user.id, actor=f"client:{user.id}", request_id=request_id,
+        ip=ip, user_agent=user_agent, secret_key=secret_key,
+    )
+    audit(
+        db, actor=f"client:{user.id}", action="login.success",
+        entity_type="portal_user", entity_id=user.id, request_id=request_id,
+        detail={},
+    )
+    db.flush()
+    if user.must_change_password:
+        next_step = "change_password"
+    elif user.terms_accepted_at is None:
+        next_step = "terms"
+    else:
+        next_step = "portal"
     return {
-        "challenge_id": challenge,
-        "expires_in_seconds": int(MFA_CHALLENGE_TTL.total_seconds()),
-        "methods": methods,
-        "sms_available": bool(user.phone_verified_at),
+        "ok": True,
+        "next": next_step,
+        "session_expires_in_seconds": SESSION_IDLE_SECONDS,
+        "_session_raw": raw_session,
     }
+
+
+def change_client_password(db, *, user: PortalUser, new_password: str,
+                           current_password: str | None, session_id: str,
+                           request_id: str, ip: str | None,
+                           user_agent: str | None, secret_key: bytes) -> dict:
+    """Password change, two modes in one endpoint:
+
+    - Forced (``must_change_password``): temporary-password onboarding or an
+      owner password reset. The session itself proves the caller knew the
+      previous password, so no current password is required.
+    - Voluntary (in-settings): the current password is required.
+
+    Both clear ``must_change_password``, rotate the session, and revoke all
+    other sessions. Wrong current password → generic 401 (anti-enumeration).
+    """
+    forced = user.must_change_password
+    if not forced:
+        if not passwords.verify_password(user.password_hash, current_password or "x"):
+            audit(db, actor=f"client:{user.id}", action="password.change_failure",
+                  entity_type="portal_user", entity_id=user.id, request_id=request_id, detail={})
+            raise ApiError("invalid_credentials")
+    check_password_policy(new_password)
+    if passwords.verify_password(user.password_hash, new_password):
+        raise ApiError(
+            "validation_failed",
+            fields=[{"field": "new_password",
+                     "message": "Choose a password different from your current one."}],
+        )
+    user.password_hash = passwords.hash_password(new_password)
+    user.must_change_password = False
+    user.failed_logins = 0
+    # Revoke every session except the current one, then rotate the current.
+    others = (
+        db.execute(
+            select(Session).where(Session.user_id == user.id,
+                                 Session.revoked_at.is_(None),
+                                 Session.id != session_id)
+        ).scalars().all()
+    )
+    now = utcnow()
+    for s in others:
+        s.revoked_at = now
+    current = db.get(Session, session_id)
+    if current is not None:
+        current.revoked_at = now
+    raw_session, _ = _new_session(
+        db, user_id=user.id, actor=f"client:{user.id}", request_id=request_id,
+        ip=ip, user_agent=user_agent, secret_key=secret_key,
+    )
+    audit(
+        db, actor=f"client:{user.id}", action="password.changed",
+        entity_type="portal_user", entity_id=user.id, request_id=request_id,
+        detail={"forced": forced, "other_sessions_revoked": len(others)},
+    )
+    db.flush()
+    if user.terms_accepted_at is None:
+        next_step = "terms"
+    else:
+        next_step = "portal"
+    return {"ok": True, "next": next_step, "_session_raw": raw_session}
 
 
 def _consume_login_challenge(db, *, challenge_id: str, code: str, expected_role: str,
@@ -1054,171 +965,6 @@ def _consume_login_challenge(db, *, challenge_id: str, code: str, expected_role:
         return user
 
 
-def client_verify_totp(db, *, challenge_id: str, code: str, request_id: str, ip: str | None,
-                       user_agent: str | None, secret_key: bytes, settings) -> dict:
-    user = _consume_login_challenge(
-        db, challenge_id=challenge_id, code=code, expected_role="client",
-        request_id=request_id, settings=settings,
-    )
-    raw_session, _ = _new_session(
-        db, user_id=user.id, actor=f"client:{user.id}", request_id=request_id,
-        ip=ip, user_agent=user_agent, secret_key=secret_key,
-    )
-    audit(
-        db, actor=f"client:{user.id}", action="login.success",
-        entity_type="portal_user", entity_id=user.id, request_id=request_id,
-        detail={"via": "mfa"},
-    )
-    db.flush()
-    nxt = "terms" if user.terms_accepted_at is None else "portal"
-    return {"ok": True, "next": nxt, "session_expires_in_seconds": SESSION_IDLE_SECONDS,
-            "_session_raw": raw_session}
-
-
-def client_sms_request(db, *, challenge_id: str, request_id: str) -> dict:
-    """SMS fallback to VERIFIED numbers only (AUTH §4.4)."""
-    digest = tokens.token_digest(challenge_id)
-    ch = db.get(MfaChallenge, digest)
-    now = utcnow()
-    if ch is None or ch.consumed_at is not None or ch.expires_at <= now:
-        raise ApiError("challenge_consumed")
-    user = db.get(PortalUser, ch.user_id)
-    if user is None or user.role != "client":
-        raise ApiError("challenge_consumed")
-    if not user.phone_verified_at or not user.phone_e164:
-        raise ApiError("sms_not_configured")
-    raw_code = codes.issue_code(
-        db, scope="mfa_sms", target=user.phone_e164, user_id=user.id,
-        ttl_minutes=SMS_CODE_TTL_MINUTES, max_attempts=5,
-    )
-    outbox_lib.stage_intent(
-        db,
-        kind="mfa_sms_fallback",
-        scope_id=f"{user.id}:{ch.id}",
-        destination=user.phone_e164,
-        snapshot_fields={
-            "first_name": (user.display_name or "").split()[0] if user.display_name else "",
-            "code": raw_code,
-            "expires_minutes": str(SMS_CODE_TTL_MINUTES),
-        },
-    )
-    audit(
-        db, actor=f"client:{user.id}", action="mfa.sms_requested",
-        entity_type="portal_user", entity_id=user.id, request_id=request_id, detail={},
-    )
-    db.flush()
-    return {"ok": True, "expires_in_seconds": SMS_CODE_TTL_MINUTES * 60}
-
-
-def client_sms_verify(db, *, challenge_id: str, code: str, request_id: str, ip: str | None,
-                      user_agent: str | None, secret_key: bytes, lock_backend) -> dict:
-    digest = tokens.token_digest(challenge_id)
-    with advisory_lock(db, advisory.advisory_key("mfa-challenge", digest)):
-        ch = db.get(MfaChallenge, digest)
-        now = utcnow()
-        if ch is None or ch.consumed_at is not None or ch.expires_at <= now:
-            raise ApiError("challenge_consumed")
-        user = db.get(PortalUser, ch.user_id)
-        if user is None or user.role != "client" or not user.phone_e164:
-            raise ApiError("challenge_consumed")
-        result = codes.verify_code(
-            db, scope="mfa_sms", target=user.phone_e164, code=code or "",
-            lock_backend=lock_backend,
-        )
-        if not result.ok:
-            if result.reason == "code_expired":
-                raise ApiError("challenge_consumed")
-            if result.reason == "code_attempts_exceeded":
-                ch.consumed_at = now
-                db.flush()
-            raise ApiError("2fa_invalid")
-        ch.consumed_at = now
-        raw_session, _ = _new_session(
-            db, user_id=user.id, actor=f"client:{user.id}", request_id=request_id,
-            ip=ip, user_agent=user_agent, secret_key=secret_key,
-        )
-        audit(
-            db, actor=f"client:{user.id}", action="mfa.success",
-            entity_type="portal_user", entity_id=user.id, request_id=request_id,
-            detail={"via": "sms"},
-        )
-        db.flush()
-        nxt = "terms" if user.terms_accepted_at is None else "portal"
-        return {"ok": True, "next": nxt, "session_expires_in_seconds": SESSION_IDLE_SECONDS,
-                "_session_raw": raw_session}
-
-
-# --- TOTP enrollment (client-pre) ----------------------------------------------
-
-
-def totp_enroll(db, *, user: PortalUser, settings, request_id: str) -> dict:
-    if user.totp_enrolled_at is not None:
-        raise ApiError("totp_already_enrolled")
-    secret = totp.generate_secret()
-    user.totp_secret_enc = secretbox.seal(settings.totp_kek, secret.encode("ascii"))
-    # A pending secret replaces any prior unenrolled one; enrollment only
-    # completes on confirm (D-36 two-code rule).
-    db.flush()
-    audit(
-        db, actor=f"client:{user.id}", action="totp.enroll_started",
-        entity_type="portal_user", entity_id=user.id, request_id=request_id, detail={},
-    )
-    return {
-        "provisioning_uri": totp.provisioning_uri(secret, account=user.email),
-        "manual_key": secret,
-    }
-
-
-def _new_recovery_codes() -> list[str]:
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    return [
-        "".join(secrets.choice(alphabet) for _ in range(16))
-        for _ in range(RECOVERY_CODE_COUNT)
-    ]
-
-
-def totp_confirm(db, *, user: PortalUser, code: str, code2: str, settings, request_id: str) -> dict:
-    if user.totp_enrolled_at is not None:
-        raise ApiError("totp_already_enrolled")
-    if not user.totp_secret_enc:
-        raise ApiError("validation_failed",
-                       fields=[{"field": "code", "message": "Start enrollment first."}])
-    try:
-        secret = secretbox.unseal(settings.totp_kek, bytes(user.totp_secret_enc)).decode("ascii")
-    except secretbox.DecryptionFailed:
-        raise ApiError("2fa_invalid")
-    if not totp.verify_enrollment_pair(secret, code or "", code2 or ""):
-        audit(
-            db, actor=f"client:{user.id}", action="mfa.failure",
-            entity_type="portal_user", entity_id=user.id, request_id=request_id,
-            detail={"via": "totp_enroll"},
-        )
-        raise ApiError("2fa_invalid")
-    now = utcnow()
-    user.totp_enrolled_at = now
-    # Replace any stale codes (re-enrollment after owner disable).
-    for rc in (
-        db.execute(select(MfaRecoveryCode).where(MfaRecoveryCode.user_id == user.id))
-        .scalars().all()
-    ):
-        db.delete(rc)
-    raw_codes = _new_recovery_codes()
-    for rc in raw_codes:
-        db.add(MfaRecoveryCode(id=new_uuid7(), user_id=user.id,
-                               code_hash=sha256_hex("jaro-recovery-v1", rc)))
-    # First login completes here: the account leaves pending_first_login.
-    if user.status == "pending_first_login":
-        user.status = "active"
-    audit(
-        db, actor=f"client:{user.id}", action="totp.enrolled",
-        entity_type="portal_user", entity_id=user.id, request_id=request_id,
-        detail={"recovery_codes": RECOVERY_CODE_COUNT},
-    )
-    db.flush()
-    # Shown ONCE — the DB holds only SHA-256 digests (B6).
-    return {"ok": True, "enrolled": True, "recovery_codes": raw_codes}
-
-
 def owner_totp_enroll(db, *, owner: PortalUser, settings, request_id: str) -> dict:
     if owner.totp_enrolled_at is not None:
         raise ApiError("totp_already_enrolled")
@@ -1252,76 +998,43 @@ def owner_totp_confirm(db, *, owner: PortalUser, code: str, code2: str, settings
     return {"ok": True, "enrolled": True}
 
 
-def disable_client_totp(db, *, owner: PortalUser, client_id: str, reason: str, request_id: str) -> dict:
-    """Owner-only TOTP reset (AUTH §2.6). No client self-disable endpoint
-    exists — mandatory 2FA must not be defeatable by the account itself."""
+def reset_client_password(db, *, owner: PortalUser, client_id: str,
+                          temp_password: str, reason: str, request_id: str) -> dict:
+    """Owner-only password reset (2026-10-15 refactor; replaces the old TOTP
+    reset). Jared sets a new temporary password — communicated by Jared
+    himself — and the client must replace it on next login. All of the
+    client's sessions are revoked so the old password stops working
+    everywhere at once."""
     user = db.get(PortalUser, client_id)
     if user is None or user.role != "client":
         raise ApiError("client_not_found")
-    if user.totp_enrolled_at is None:
-        raise ApiError("totp_not_enrolled")
     reason = (reason or "").strip()
     if not reason:
         raise ApiError("validation_failed",
                        fields=[{"field": "reason", "message": "A reason is required."}])
-    user.totp_secret_enc = None
-    user.totp_enrolled_at = None
-    for rc in (
-        db.execute(select(MfaRecoveryCode).where(MfaRecoveryCode.user_id == user.id)).scalars().all()
+    check_password_policy(temp_password)
+    user.password_hash = passwords.hash_password(temp_password)
+    user.must_change_password = True
+    user.failed_logins = 0
+    # The old password stops working everywhere at once: revoke sessions
+    # and any live password-reset links (cf. revoke_all_client_sessions).
+    sessions.revoke_all_sessions(db, user.id)
+    for r in (
+        db.execute(select(PasswordReset).where(
+            PasswordReset.user_id == user.id, PasswordReset.status == "live"))
+        .scalars().all()
     ):
-        db.delete(rc)
+        r.status = "revoked"
     audit(
-        db, actor=f"owner:{owner.id}", action="totp.disabled",
+        db, actor=f"owner:{owner.id}", action="password.reset_by_owner",
         entity_type="portal_user", entity_id=user.id, request_id=request_id,
         detail={"reason": reason[:280]},
     )
     db.flush()
-    return {"ok": True, "totp_enrolled": False}
+    return {"ok": True, "must_change_password": True}
 
 
 # --- phone enrollment (client) ---------------------------------------------------
-
-
-def phone_request_code(db, *, user: PortalUser, phone_e164: str, request_id: str) -> dict:
-    phone = (phone_e164 or "").strip()
-    if not _E164_RE.match(phone):
-        raise ApiError("validation_failed",
-                       fields=[{"field": "phone_e164", "message": "Phone must be E.164, e.g. +17785550134."}])
-    raw_code = codes.issue_code(
-        db, scope="mfa_sms", target=phone, user_id=user.id,
-        ttl_minutes=SMS_CODE_TTL_MINUTES, max_attempts=5,
-    )
-    outbox_lib.stage_intent(
-        db, kind="mfa_sms_fallback", scope_id=f"{user.id}:phone:{phone}",
-        destination=phone,
-        snapshot_fields={
-            "first_name": (user.display_name or "").split()[0] if user.display_name else "",
-            "code": raw_code, "expires_minutes": str(SMS_CODE_TTL_MINUTES),
-        },
-    )
-    audit(db, actor=f"client:{user.id}", action="phone.code_requested",
-          entity_type="portal_user", entity_id=user.id, request_id=request_id, detail={})
-    db.flush()
-    return {"ok": True, "expires_in_seconds": SMS_CODE_TTL_MINUTES * 60}
-
-
-def phone_verify(db, *, user: PortalUser, phone_e164: str, code: str, request_id: str, lock_backend) -> dict:
-    phone = (phone_e164 or "").strip()
-    result = codes.verify_code(db, scope="mfa_sms", target=phone, code=code or "",
-                               lock_backend=lock_backend)
-    if not result.ok:
-        if result.reason == "code_expired":
-            raise ApiError("challenge_consumed")
-        raise ApiError("2fa_invalid")
-    user.phone_e164 = phone
-    user.phone_verified_at = utcnow()
-    audit(db, actor=f"client:{user.id}", action="phone.verified",
-          entity_type="portal_user", entity_id=user.id, request_id=request_id, detail={})
-    db.flush()
-    return {"ok": True, "phone_verified": True}
-
-
-# --- forgot password (invite-style reset, owner-visible) ---------------------------
 
 
 def password_reset_request(db, *, email: str, request_id: str, ip: str | None, secret_key: bytes) -> dict:
@@ -1427,44 +1140,6 @@ def password_reset_complete(
         return result
 
 
-def password_change(
-    db, *, user: PortalUser, current_password: str, new_password: str,
-    session_id: str, request_id: str, ip: str | None,
-    user_agent: str | None, secret_key: bytes,
-) -> dict:
-    """Authenticated change: wrong current → generic 401; success rotates
-    the current session and revokes all others."""
-    if not passwords.verify_password(user.password_hash, current_password or "x"):
-        audit(db, actor=f"client:{user.id}", action="password.change_failure",
-              entity_type="portal_user", entity_id=user.id, request_id=request_id, detail={})
-        raise ApiError("invalid_credentials")
-    check_password_policy(new_password)
-    user.password_hash = passwords.hash_password(new_password)
-    # Revoke every session except the current one, then rotate the current.
-    others = (
-        db.execute(
-            select(Session).where(Session.user_id == user.id,
-                                 Session.revoked_at.is_(None),
-                                 Session.id != session_id)
-        ).scalars().all()
-    )
-    now = utcnow()
-    for s in others:
-        s.revoked_at = now
-    current = db.get(Session, session_id)
-    if current is not None:
-        current.revoked_at = now
-    raw_session, _ = _new_session(
-        db, user_id=user.id, actor=f"client:{user.id}", request_id=request_id,
-        ip=ip, user_agent=user_agent, secret_key=secret_key,
-    )
-    audit(
-        db, actor=f"client:{user.id}", action="password.changed",
-        entity_type="portal_user", entity_id=user.id, request_id=request_id,
-        detail={"other_sessions_revoked": len(others)},
-    )
-    db.flush()
-    return {"ok": True, "_session_raw": raw_session}
 
 
 def list_password_resets(db, *, status: str | None, page: int, per_page: int) -> dict:
@@ -1536,7 +1211,7 @@ def session_status_payload(db, view: sessions.SessionView, user: PortalUser) -> 
             0, int((view.absolute_expires_at - utcnow()).total_seconds())
         ),
         "terms_pending": user.terms_accepted_at is None,
-        "totp_enrolled": user.totp_enrolled_at is not None,
+        "must_change_password": user.must_change_password,
     }
 
 
@@ -2509,7 +2184,7 @@ def client_projection(user: PortalUser) -> dict:
         "phone_masked": mask_phone(user.phone_e164),
         "status": user.status, "created_at": utc_iso(user.created_at),
         "last_login_at": utc_iso(user.last_login_at),
-        "totp_enrolled": user.totp_enrolled_at is not None,
+        "must_change_password": user.must_change_password,
         "terms_accepted_at": utc_iso(user.terms_accepted_at),
     }
 

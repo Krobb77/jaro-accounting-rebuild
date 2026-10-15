@@ -15,7 +15,7 @@
  * real backend (if any) serves the page normally.
  *
  * While active a floating "STUB MODE" badge shows the demo credentials,
- * the current demo authenticator codes, and the latest booking code —
+ * the latest booking code —
  * everything a tester needs, without touching the app's own UI.
  *
  * State persists in localStorage (key below) so bookings, uploads and
@@ -47,6 +47,23 @@
     }
   }
   if (!enabled) return; // inert: the real backend owns /api/*
+
+  /* ---------------- subpath awareness ---------------- */
+  // On project-page hosts (e.g. GitHub Pages) the site lives under a
+  // subpath like /jaro-accounting-rebuild. Derive it from this script's
+  // own URL so generated links and request routing stay correct there;
+  // empty on root deployments.
+  var STUB_BASE = (function () {
+    try {
+      var src = (document.currentScript && document.currentScript.src) || "";
+      var m = src.match(/^(?:https?:\/\/[^/]+)?(\/.*?)\/js\/stub-backend\.js$/);
+      return m ? m[1] : "";
+    } catch (e) { return ""; }
+  })();
+  function stripBase(path) {
+    if (STUB_BASE && path.indexOf(STUB_BASE + "/") === 0) return path.slice(STUB_BASE.length);
+    return path;
+  }
 
   /* ---------------- tiny utils ---------------- */
 
@@ -136,6 +153,16 @@
     password: "demo-client-1",
     phone_e164: "+16045550137",
     status: "active",
+  };
+  // Temp-password onboarding demo: signs in, then must choose her own password.
+  var DEMO_TEMP_CLIENT = {
+    id: "client_new_temp",
+    display_name: "New Client",
+    email: "new.client@example.com",
+    password: "temp-password-1",
+    phone_e164: null,
+    status: "active",
+    must_change_password: true,
   };
   var DEMO_OWNER = {
     id: "owner_jared",
@@ -607,9 +634,9 @@
       guest_timezone: booking.guest_timezone,
       email_masked: maskEmail(booking.email),
       queued_count: 3,
-      reschedule_url: "/booking-manage.html?token=" + booking.manage_token,
-      cancel_url: "/booking-manage.html?token=" + booking.manage_token,
-      ics_url: "/api/v1/booking/manage/" + booking.manage_token + "/ics",
+      reschedule_url: STUB_BASE + "/booking-manage.html?token=" + booking.manage_token,
+      cancel_url: STUB_BASE + "/booking-manage.html?token=" + booking.manage_token,
+      ics_url: STUB_BASE + "/api/v1/booking/manage/" + booking.manage_token + "/ics",
       replayed: !!replayed,
     };
   }
@@ -776,15 +803,6 @@
     return null;
   }
 
-  /** Demo TOTP: rotating codes, like a real authenticator app. */
-  function demoTotp() {
-    var counter = Math.floor(Date.now() / 30000);
-    function codeFor(c) {
-      return String(100000 + ((c * 7919 + 123456) % 900000));
-    }
-    return { prev: codeFor(counter - 1), now: codeFor(counter), next: codeFor(counter + 1) };
-  }
-
   function portalAuthRoutes(method, parts, query, body) {
     var p0 = parts[0] || "";
 
@@ -795,6 +813,8 @@
       return jsonResponse({
         expires_in_seconds: Math.max(1, Math.round((S.session.expires_at - Date.now()) / 1000)),
         email: S.session.email, role: S.session.role,
+        must_change_password: !!S.session.must_change_password,
+        terms_pending: !S.session.terms_accepted,
       });
     }
 
@@ -802,49 +822,46 @@
       var v = body || {};
       var acct = null, role = null;
       if (v.email === DEMO_CLIENT.email && v.password === DEMO_CLIENT.password) { acct = DEMO_CLIENT; role = "client"; }
+      else if (v.email === DEMO_TEMP_CLIENT.email && v.password === DEMO_TEMP_CLIENT.password) { acct = DEMO_TEMP_CLIENT; role = "client"; }
       else if (v.email === DEMO_OWNER.email && v.password === DEMO_OWNER.password) { acct = DEMO_OWNER; role = "owner"; }
       if (!acct) {
         // Anti-enumeration: identical 401 either way.
         return errResponse("invalid_credentials", "That email and password didn't match our records.", 401);
       }
-      var cid = uid("challenge");
-      var t = demoTotp();
-      S.challenges[cid] = { email: acct.email, role: role, display_name: acct.display_name, totp_code: t.now, sms_code: sixDigit() };
+      // Password-only login (no authenticator): session immediately, with a
+      // forced password-change step for temporary-password onboarding.
+      var termsAccepted = role === "owner" ? true : !!S.clientTermsAccepted;
+      var mustChange = !!acct.must_change_password && !S.tempPasswordChanged;
+      S.session = {
+        email: acct.email, role: role, display_name: acct.display_name,
+        expires_at: Date.now() + SESSION_TTL_MS,
+        terms_accepted: termsAccepted,
+        must_change_password: mustChange,
+      };
       save(); badgeRefresh();
-      return jsonResponse({ challenge_id: cid, sms_available: true });
+      return jsonResponse({
+        ok: true,
+        next: mustChange ? "change_password" : (termsAccepted ? "portal" : "terms"),
+        session_expires_in_seconds: Math.round(SESSION_TTL_MS / 1000),
+      });
     }
 
-    if (method === "POST" && p0 === "login" && parts[1] === "sms" && parts[2] === "request") {
-      var ch = S.challenges[(body || {}).challenge_id];
-      if (!ch) return errResponse("challenge_consumed", "That verification session expired. Please sign in again from the start.", 410);
-      badgeRefresh();
-      return jsonResponse({ sent_to_masked: maskEmail(ch.email) });
+    if (method === "POST" && p0 === "password" && parts[1] === "change") {
+      if (!S.session) return errResponse("unauthorized", "Please sign in again.", 401);
+      var vpw = body || {};
+      if (!vpw.new_password || vpw.new_password.length < 12)
+        return errResponse("validation_failed", "Please choose a stronger password.", 422,
+          [{ field: "new_password", message: "Use at least 12 characters." }]);
+      S.tempPasswordChanged = true;
+      if (S.session) S.session.must_change_password = false;
+      var termsOk = S.session.role === "owner" ? true : !!S.clientTermsAccepted;
+      save(); badgeRefresh();
+      return jsonResponse({ ok: true, next: termsOk ? "portal" : "terms" });
     }
 
-    if (method === "POST" && p0 === "login" && parts[1] === "sms" && parts[2] === "verify") {
-      var v2 = body || {};
-      var ch2 = S.challenges[v2.challenge_id];
-      if (!ch2) return errResponse("challenge_consumed", "That verification session expired. Please sign in again from the start.", 410);
-      if ((v2.code || "").trim() !== ch2.sms_code) {
-        return errResponse("invalid_code", "That code isn't right.", 401,
-          [{ field: "code", message: "That code isn't right. Check the code and try again." }]);
-      }
-      return finishLogin(ch2, v2.challenge_id);
-    }
-
-    if (method === "POST" && p0 === "login" && parts[1] === "2fa") {
-      var v3 = body || {};
-      var ch3 = S.challenges[v3.challenge_id];
-      if (!ch3) return errResponse("challenge_consumed", "That verification session expired. Please sign in again from the start.", 410);
-      var t3 = demoTotp();
-      var ok = [t3.prev, t3.now, t3.next].indexOf((v3.code || "").trim()) !== -1;
-      if (!ok) {
-        return errResponse("invalid_code", "That code isn't right.", 401,
-          [{ field: "code", message: "That code isn't right. Check your authenticator app and try again." }]);
-      }
-      return finishLogin(ch3, v3.challenge_id);
-    }
-
+    
+    
+    
     if (method === "POST" && p0 === "logout") {
       S.session = null; save();
       return jsonResponse({ ok: true });
@@ -865,7 +882,7 @@
           "<p>This is a <strong>stub preview</strong>: the terms below illustrate the real " +
           "document's shape. Nothing here is a legal agreement.</p>" +
           "<ol><li>The portal is for you and Jaro Accounting to exchange tax documents securely.</li>" +
-          "<li>Keep your password and authenticator private; tell us immediately if you suspect misuse.</li>" +
+          "<li>Keep your password private; tell us immediately if you suspect misuse.</li>" +
           "<li>Documents you upload should be true copies of your records.</li>" +
           "<li>Either side may close portal access with written notice.</li></ol>",
       });
@@ -882,56 +899,9 @@
       return jsonResponse({ accepted_at: nowISO() });
     }
 
-    if (method === "GET" && p0 === "2fa" && parts[1] === "status") {
-      var a3 = requireAuth();
-      if (a3) return a3;
-      return jsonResponse({ enrolled: S.totpEnrolled });
-    }
-
-    if (method === "POST" && p0 === "2fa" && parts[1] === "enroll") {
-      var a4 = requireAuth();
-      if (a4) return a4;
-      var key = "STUB-DEMO-JBSWY3DPEHPK3PXP";
-      return jsonResponse({
-        manual_key: key,
-        provisioning_uri: "otpauth://totp/Jaro%20Accounting:" + encodeURIComponent(S.session.email) +
-          "?secret=" + key + "&issuer=Jaro%20Accounting",
-      });
-    }
-
-    if (method === "POST" && p0 === "2fa" && parts[1] === "confirm") {
-      var a5 = requireAuth();
-      if (a5) return a5;
-      var v4 = body || {};
-      var t4 = demoTotp();
-      var good = ((v4.code === t4.prev && v4.code2 === t4.now) ||
-                  (v4.code === t4.now && v4.code2 === t4.next));
-      if (!good) {
-        return errResponse("invalid_code", "Those codes didn't work. Try the next two.", 401,
-          [{ field: "code", message: "Those codes didn't work. Use the two codes from the demo authenticator in the stub badge." }]);
-      }
-      S.totpEnrolled = true;
-      var codes = [];
-      for (var i = 0; i < 8; i++) codes.push(rid().slice(0, 8).toUpperCase().replace(/(.{4})/, "$1-"));
-      save(); badgeRefresh();
-      return jsonResponse({ recovery_codes: codes });
-    }
-
     return null; // not an auth route
   }
 
-  function finishLogin(ch, challengeId) {
-    delete S.challenges[challengeId];
-    // Owner: terms pre-accepted. Demo client: first login hits the terms gate.
-    var termsAccepted = ch.role === "owner" ? true : !!S.clientTermsAccepted;
-    S.session = {
-      email: ch.email, role: ch.role, display_name: ch.display_name,
-      expires_at: Date.now() + SESSION_TTL_MS,
-      terms_accepted: termsAccepted,
-    };
-    save();
-    return jsonResponse({ next: termsAccepted ? "dashboard" : "terms" });
-  }
 
   /* ================= portal: client ================= */
 
@@ -955,27 +925,6 @@
           [{ field: "new_password", message: "Use at least 12 characters." }]);
       return jsonResponse({ ok: true });
     }
-    if (method === "POST" && p0 === "invitations" && parts[1] === "verify") {
-      if ((body || {}).token === DEMO_INVITE_TOKEN) {
-        return jsonResponse({ client_name: DEMO_CLIENT.display_name, email_masked: maskEmail(DEMO_CLIENT.email) });
-      }
-      return errResponse("invitation_invalid", "This invitation link isn't valid anymore.", 410);
-    }
-    if (method === "POST" && p0 === "invitations" && parts[1] === "set-password") {
-      var v2 = body || {};
-      if (v2.token !== DEMO_INVITE_TOKEN)
-        return errResponse("invitation_invalid", "This invitation link isn't valid anymore.", 410);
-      if (!v2.password || v2.password.length < 12)
-        return errResponse("validation_failed", "Please choose a stronger password.", 422,
-          [{ field: "password", message: "Use at least 12 characters." }]);
-      S.session = {
-        email: DEMO_CLIENT.email, role: "client", display_name: DEMO_CLIENT.display_name,
-        expires_at: Date.now() + SESSION_TTL_MS, terms_accepted: false,
-      };
-      save();
-      return jsonResponse({ ok: true });
-    }
-
     var authErr = requireAuth();
     if (authErr) return authErr;
 
@@ -983,8 +932,8 @@
       if (!S.session.terms_accepted) {
         return errResponse("terms_not_accepted", "Please accept the terms of use to continue.", 403);
       }
-      if (S.session.role === "client" && !S.totpEnrolled) {
-        return errResponse("totp_required", "Two-step verification setup is required.", 403);
+      if (S.session.must_change_password) {
+        return errResponse("password_change_required", "You need to set your own password before you can continue.", 403);
       }
       return jsonResponse(dashboardProjection());
     }
@@ -1124,7 +1073,7 @@
       return jsonResponse({
         id: cl.id, display_name: cl.display_name, email: cl.email, status: cl.status,
         phone_e164: cl.phone_e164, phone_verified_at: cl.phone_verified_at,
-        totp_enrolled_at: cl.totp_enrolled_at, terms_accepted_at: cl.terms_accepted_at,
+        must_change_password: !!cl.must_change_password, terms_accepted_at: cl.terms_accepted_at,
         last_login_at: cl.last_login_at, internal_note: cl.internal_note,
         documents: S.documents.filter(function (d) { return !d.deleted_at; }),
         filings: S.filings.map(function (f) { return { id: f.id, kind_label: f.kind_label, tax_year: f.tax_year, status: f.status, note: f.note }; }),
@@ -1290,25 +1239,18 @@
           { field: "email", message: "Please enter a valid email address." },
         ].filter(function (x) { return x.field === "client_name" ? !nv.client_name : !emailValid(nv.email || ""); }));
       }
+      if (!nv.temp_password || nv.temp_password.length < 12)
+        return errResponse("validation_failed", "Please fix the following:", 422,
+          [{ field: "temp_password", message: "Use at least 12 characters." }]);
       var invite = {
         id: "inv_" + String(S.inviteSeq++).padStart(4, "0"),
         client_name: nv.client_name, email: nv.email,
-        status: "emailed", expires_at: daysFromNow(7), created_at: nowISO(),
+        status: "accepted", expires_at: daysFromNow(7), created_at: nowISO(),
       };
       S.invitations.unshift(invite);
-      auditAction("invitation.emailed", "invitation");
+      auditAction("invitation.created", "invitation");
       save();
-      return jsonResponse({ id: invite.id }, 201);
-    }
-
-    if (p0 === "invitations" && parts[2] === "resend" && method === "POST") {
-      var inv4 = S.invitations.find(function (x) { return x.id === parts[1]; });
-      if (!inv4) return notFound();
-      inv4.status = "emailed";
-      inv4.expires_at = daysFromNow(7); // resend revokes the old token, mints anew
-      auditAction("invitation.resent", "invitation");
-      save();
-      return jsonResponse({ ok: true });
+      return jsonResponse({ id: invite.id, status: "accepted" }, 201);
     }
 
     if (p0 === "invitations" && parts[2] === "revoke" && method === "POST") {
@@ -1377,8 +1319,9 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
   }
 
-  /** Handle <a href="/api/v1/..."> navigations (downloads) inside stub mode. */
+  /** Handle <a href=".../api/v1/..."> navigations (downloads) inside stub mode. */
   function downloadForApiPath(path) {
+    path = stripBase(path);
     var m;
     if ((m = path.match(/^\/api\/v1\/booking\/manage\/([^/]+)\/ics$/))) {
       var bookingId = S.manageTokens[m[1]];
@@ -1426,10 +1369,12 @@
   }
 
   document.addEventListener("click", function (e) {
-    var a = e.target && e.target.closest ? e.target.closest('a[href^="/api/v1/"]') : null;
+    var a = e.target && e.target.closest ? e.target.closest('a[href*="/api/v1/"]') : null;
     if (!a) return;
+    var href = a.getAttribute("href") || "";
+    if (href.indexOf("/api/v1/") === -1) return;
     var path;
-    try { path = new URL(a.getAttribute("href"), window.location.origin).pathname; }
+    try { path = new URL(href, window.location.origin).pathname; }
     catch (err) { return; }
     if (downloadForApiPath(path)) {
       e.preventDefault();
@@ -1476,7 +1421,7 @@
     var u, path, query;
     try {
       u = new URL(urlStr, window.location.origin);
-      path = u.pathname;
+      path = stripBase(u.pathname);
       query = u.searchParams;
     } catch (e) { return null; }
     if (path.indexOf("/api/") !== 0) return null;
@@ -1501,13 +1446,17 @@
     if (typeof input !== "string") return origFetch(input, init); // app never does this
     var method = (init.method || "GET").toUpperCase();
     var headers = normHeaders(init.headers);
+    var path;
+    try { path = new URL(input, window.location.origin).pathname; }
+    catch (e) { return origFetch(input, init); }
+    if (stripBase(path).indexOf("/api/") !== 0) return origFetch(input, init); // non-/api: real network
     var res;
     try {
       res = route(method, input, headers, parseBody(init.body));
     } catch (err) {
       res = errResponse("stub_error", "Stub backend error: " + (err && err.message), 500);
     }
-    if (!res) return origFetch(input, init); // non-/api URL: real network
+    if (!res) res = notFound();
     var delay = latency();
     return new Promise(function (resolve) {
       setTimeout(function () { resolve(res); }, delay);
@@ -1550,26 +1499,18 @@
   function badgeRefresh() {
     var p = document.getElementById("jaro-stub-panel");
     if (!p || p.hidden) return;
-    var t = demoTotp();
-    var secsLeft = 30 - Math.floor(Date.now() / 1000) % 30;
-    var chIds = Object.keys(S.challenges || {});
-    var lastCh = chIds.length ? S.challenges[chIds[chIds.length - 1]] : null;
     var html = "<p style='margin:0 0 8px'><strong>Demo backend</strong> — no real data moves. " +
       "Flows behave like production against realistic fixtures.</p>";
     html += "<p style='margin:0 0 4px'><strong>Sign in</strong></p>";
     html += kv("Client", DEMO_CLIENT.email + " / " + DEMO_CLIENT.password);
+    html += kv("Temp-password demo", DEMO_TEMP_CLIENT.email + " / " + DEMO_TEMP_CLIENT.password + " (must choose own password)");
     html += kv("Jared (owner)", DEMO_OWNER.email + " / " + DEMO_OWNER.password);
-    html += "<p style='margin:8px 0 4px'><strong>Demo authenticator</strong> (rotates every 30s)</p>";
-    html += kv("Now (" + secsLeft + "s left)", t.now);
-    html += kv("Next", t.next);
-    if (lastCh) html += kv("Demo SMS code", lastCh.sms_code);
     if (S.lastBookingCode) {
       html += "<p style='margin:8px 0 4px'><strong>Latest booking code</strong></p>";
       html += kv(S.lastBookingCode.masked, S.lastBookingCode.code);
     }
     html += "<p style='margin:8px 0 4px'><strong>Deep links</strong></p>";
-    html += "<div><a href='/portal/accept/?token=" + DEMO_INVITE_TOKEN + "'>Invitation accept</a></div>";
-    html += "<div><a href='/portal/reset-password/?token=" + DEMO_RESET_TOKEN + "'>Password reset</a></div>";
+    html += "<div><a href='" + STUB_BASE + "/portal/reset-password/?token=" + DEMO_RESET_TOKEN + "'>Password reset</a></div>";
     html += "<p style='margin:10px 0 0'>";
     html += "<button type='button' id='jaro-stub-reset' style='margin-right:8px'>Reset demo data</button>";
     html += "<button type='button' id='jaro-stub-off'>Disable stubs</button></p>";
@@ -1599,7 +1540,6 @@
   window.JaroStub = {
     reset: function () { S = seedState(); seedTakenSlotsIfEmpty(); save(); badgeRefresh(); },
     state: function () { return S; },
-    totp: demoTotp,
   };
 
   if (document.readyState === "loading") {

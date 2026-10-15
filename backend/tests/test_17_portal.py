@@ -201,21 +201,21 @@ def _sync_cookie(client, response):
         client.cookies.set(sessions_lib.COOKIE_NAME, m.group(1))
 
 
-def _invite_token(accept_url: str) -> str:
-    m = re.search(r"token=([A-Za-z0-9_-]{43})", accept_url)
-    assert m, accept_url
-    return m.group(1)
-
-
-def _create_invite(oc, email, name="Test Client", phone=None, key=None):
-    body = {"client_name": name, "email": email}
+def _create_invite(oc, email, name="Test Client", phone=None, key=None,
+                 temp_password="TempPass-Callsite-03"):
+    """Owner provisions a client with a temporary password. Returns
+    (invitation id, user id). No email is sent — Jared communicates the
+    temporary password himself."""
+    body = {"client_name": name, "email": email, "temp_password": temp_password}
     if phone:
         body["phone_e164"] = phone
     r = oc.post("/api/v1/admin/invitations", json=body,
                 headers={"Idempotency-Key": key or _idem_key()})
     assert r.status_code == 201, r.text
     data = r.json()
-    return data["id"], _invite_token(data["accept_url"])
+    assert data["status"] == "accepted"
+    assert "accept_url" not in data  # no token accept flow anymore
+    return data["id"], data["user_id"]
 
 
 def _totp_pair(secret: str) -> tuple[str, str]:
@@ -224,27 +224,33 @@ def _totp_pair(secret: str) -> tuple[str, str]:
     return totp_lib.code_at(secret, for_time=t), totp_lib.code_at(secret, for_time=t + 30)
 
 
-def _onboard_client(papp, cc, oc, email, name="Test Client", password="correct horse battery staple 123", phone=None):
-    """Full first-run: invite → verify → set-password → terms → TOTP enroll.
-    Returns (client TestClient-cookie jar user id). The caller passes a
-    FRESH TestClient (no shared cookies) — each client gets its own."""
+def _onboard_client(papp, cc, oc, email, name="Test Client",
+                  temp_password="TempPass-Callsite-03", password="ClientOwn-Password-02", phone=None):
+    """Full first-run: invite (temp password) -> login -> forced password
+    change -> terms -> dashboard. Returns (client TestClient, user id,
+    invite id). The caller passes a FRESH TestClient (no shared cookies)."""
     from fastapi.testclient import TestClient
     from app import sessions as sessions_lib
 
     _seed_terms(papp)
-    invite_id, token = _create_invite(oc, email, name, phone=phone)
+    invite_id, user_id = _create_invite(oc, email, name, phone=phone,
+                                        temp_password=temp_password)
     c = TestClient(papp, raise_server_exceptions=False)
-    # verify (masked email, no token state leaked)
-    r = c.post("/api/v1/portal/invitations/verify", json={"token": token})
-    assert r.status_code == 200, r.text
-    assert "@" in r.json()["email_masked"] and email not in r.json()["email_masked"]
-    # set-password (Idempotency-Key required)
-    r = c.post("/api/v1/portal/invitations/set-password",
-               json={"token": token, "password": password},
-               headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 201, r.text
+    # login with the temporary password -> forced change
+    r = c.post("/api/v1/portal/login",
+               json={"email": email, "password": temp_password})
+    assert r.status_code == 202, r.text
+    assert r.json()["next"] == "change_password"
     _sync_cookie(c, r)
     assert sessions_lib.COOKIE_NAME in r.headers.get("set-cookie", "")
+    # dashboard gated until the temporary password is replaced
+    r = c.get("/api/v1/portal/dashboard")
+    assert r.status_code == 403 and r.json()["code"] == "password_change_required"
+    # forced change (no current password needed -- the session proves it)
+    r = c.post("/api/v1/portal/password/change", json={"new_password": password})
+    assert r.status_code == 200, r.text
+    assert r.json()["next"] == "terms"
+    _sync_cookie(c, r)  # the change rotates the session
     # terms gate: dashboard 403 until accept
     r = c.get("/api/v1/portal/dashboard")
     assert r.status_code == 403 and r.json()["code"] == "terms_not_accepted"
@@ -253,26 +259,11 @@ def _onboard_client(papp, cc, oc, email, name="Test Client", password="correct h
     vh = r.json()["version_hash"]
     r = c.post("/api/v1/portal/terms/accept", json={"version_hash": vh})
     assert r.status_code == 200, r.text
-    # TOTP enroll → confirm with two consecutive codes
-    r = c.post("/api/v1/portal/2fa/enroll")
-    assert r.status_code == 200, r.text
-    secret = r.json()["manual_key"]
-    code1, code2 = _totp_pair(secret)
-    r = c.post("/api/v1/portal/2fa/confirm", json={"code": code1, "code2": code2})
-    assert r.status_code == 200, r.text
-    assert len(r.json()["recovery_codes"]) == 10
     # dashboard now reachable
     r = c.get("/api/v1/portal/dashboard")
     assert r.status_code == 200, r.text
-    db = _fresh_db(papp)
-    try:
-        user = db.query(PortalUser).filter(PortalUser.email == email).one()
-        return c, user.id, invite_id
-    finally:
-        db.close()
+    return c, user_id, invite_id
 
-
-# --- 17_01: owner bootstrap (one-shot) --------------------------------------------
 
 
 def test_17_01_bootstrap_one_shot(papp, committed_client, tmp_path):
@@ -376,131 +367,66 @@ def _captured_invite_html(papp):
 
 
 def test_17_02_invite_lifecycle(papp, committed_client):
+    """Temp-password provisioning lifecycle (2026-10-15 refactor): the owner
+    creates the client with a temporary password; the account exists
+    immediately, no email is sent, and the client must replace the password
+    on first login."""
     _seed_terms(papp)
     cc = committed_client
     owner_id = _make_owner(papp)
     oc = _owner_client(papp, cc, owner_id)
 
-    # Create → 201 with the raw token returned ONCE (inside accept_url).
-    invite_id, token = _create_invite(oc, "lifecycle@example.com", "Lifecycle Client")
-    assert len(token) == 43
-
-    # The queued invite intent renders the PRODUCTION html through the worker.
+    # Create -> 201, status accepted, user provisioned with the temp password.
+    # No token, no accept_url, no email.
+    invite_id, user_id = _create_invite(oc, "lifecycle@example.com", "Lifecycle Client",
+                                        temp_password="TempPass-Callsite-03")
+    # No invite email is queued — Jared communicates the password himself.
     report = _run_worker(papp)
-    assert report["done"] >= 1
-    artifact = _captured_invite_html(papp)
-    html_body = artifact.get("html_body") or ""
-    assert f"https://jaroaccounting.com/portal/accept?token={token}" in html_body
-    assert "7" in html_body and ("day" in html_body.lower())
-    assert "lifecycle@example.com" in html_body
-    assert "jared@jaroaccounting.com" in html_body
-    assert "1-(778)-227-4891" in html_body
-    assert "myJaro" in html_body
-    # CLIENT_EMAIL as plain text, not a mailto (one link, one purpose):
-    # the client's own address must not appear inside a mailto: href.
-    assert "mailto:lifecycle@example.com" not in html_body
-
-    # Accept: verify → masked email; set-password with blocklist enforcement.
-    r = cc.post("/api/v1/portal/invitations/verify", json={"token": token})
-    assert r.status_code == 200
-    assert r.json()["email_masked"] != "lifecycle@example.com"
-
-    r = cc.post("/api/v1/portal/invitations/set-password",
-                json={"token": token, "password": "changeme2026"},
-                headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 422, r.text
-    assert r.json()["code"] == "validation_failed"
-    assert any("password_blocklisted" in f["message"] for f in r.json()["fields"])
-
-    r = cc.post("/api/v1/portal/invitations/set-password",
-                json={"token": token, "password": "correct horse battery staple 99"},
-                headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 201, r.text
-
-    # Replay the same token → single safe 410 (no oracle).
-    r = cc.post("/api/v1/portal/invitations/verify", json={"token": token})
-    assert r.status_code == 410 and r.json()["code"] == "invitation_invalid"
-    r = cc.post("/api/v1/portal/invitations/set-password",
-                json={"token": token, "password": "another correct horse 98"},
-                headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 410 and r.json()["code"] == "invitation_invalid"
+    assert report["done"] == 0, report
 
     db = _fresh_db(papp)
     try:
         row = db.get(PortalInvitation, invite_id)
         assert row.status == "accepted"
-        # DB stores SHA-256 only — the raw token is nowhere in the row.
-        assert token not in json.dumps({"h": row.token_hash})
+        user = db.get(PortalUser, user_id)
+        assert user.email == "lifecycle@example.com"
+        assert user.status == "active"
+        assert user.must_change_password is True
+        # The temp password verifies; the DB stores a hash, never the secret.
+        from app import passwords as _pw
+        assert _pw.verify_password(user.password_hash, "TempPass-Callsite-03")
+        assert "TempPass-Callsite-03" not in user.password_hash
     finally:
         db.close()
 
-    # Expired invite → `expired` transition + audit row (lazy expiry on access).
-    invite2_id, token2 = _create_invite(oc, "expired@example.com", "Expired Client")
-    db = _fresh_db(papp)
-    try:
-        row = db.get(PortalInvitation, invite2_id)
-        row.expires_at = utcnow() - timedelta(seconds=1)
-        db.commit()
-    finally:
-        db.close()
-    r = cc.post("/api/v1/portal/invitations/verify", json={"token": token2})
-    assert r.status_code == 410 and r.json()["code"] == "invitation_invalid"
-    db = _fresh_db(papp)
-    try:
-        row = db.get(PortalInvitation, invite2_id)
-        assert row.status == "expired"
-        audit = db.query(AuditLog).filter(
-            AuditLog.entity_type == "portal_invitation",
-            AuditLog.entity_id == invite2_id,
-            AuditLog.action == "invite.expired").count()
-        assert audit == 1
-    finally:
-        db.close()
-
-    # Revoke → link dead + queued email intent cancelled (F2: no stale mail).
-    invite3_id, token3 = _create_invite(oc, "revoked@example.com", "Revoked Client")
-    r = oc.post(f"/api/v1/admin/invitations/{invite3_id}/revoke", json={"note": "test"},
+    # Blocklisted temp password is rejected at creation.
+    r = oc.post("/api/v1/admin/invitations",
+                json={"client_name": "Bad", "email": "bad@example.com",
+                      "temp_password": "changeme2026"},
                 headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 200, r.text
-    r = cc.post("/api/v1/portal/invitations/verify", json={"token": token3})
-    assert r.status_code == 410 and r.json()["code"] == "invitation_invalid"
-    # F2: revoking from created cancels the queued email intent — no stale
-    # invitation goes out. (The worker ran once at the start; invite2's
-    # intent is still queued, so we check the revoked invite's intent
-    # specifically rather than counting all queued intents.)
-    db = _fresh_db(papp)
-    try:
-        from app.outbox import dedup_key as _dedup_key
-        intent = db.query(EmailOutbox).filter(
-            EmailOutbox.dedup_key == _dedup_key("invite", invite3_id)).one()
-        assert intent.status == "cancelled", f"intent status: {intent.status}"
-        assert intent.cancel_reason == "invitation_revoked"
-    finally:
-        db.close()
+    assert r.status_code == 422, r.text
+    assert r.json()["code"] == "validation_failed"
+    assert any("password_blocklisted" in f["message"] for f in r.json()["fields"])
 
-    # Resend → old token dead, new token works, old row revoked(reason=resend).
-    invite4_id, token4 = _create_invite(oc, "resend@example.com", "Resend Client")
-    r = oc.post(f"/api/v1/admin/invitations/{invite4_id}/resend",
+    # Duplicate email -> client_exists (the account already exists).
+    r = oc.post("/api/v1/admin/invitations",
+                json={"client_name": "Dupe", "email": "lifecycle@example.com",
+                      "temp_password": "TempPass-Dupe-09"},
                 headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 200, r.text
-    new_token = _invite_token(r.json()["accept_url"])
-    assert new_token != token4
-    r = cc.post("/api/v1/portal/invitations/verify", json={"token": token4})
-    assert r.status_code == 410 and r.json()["code"] == "invitation_invalid"
-    r = cc.post("/api/v1/portal/invitations/verify", json={"token": new_token})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 409 and r.json()["code"] == "client_exists"
+
+    # Full first login: temp password -> forced change -> terms -> dashboard.
+    c, uid, _ = _onboard_client(papp, cc, oc, "lifecycle2@example.com", "Lifecycle Two",
+                                temp_password="TempPass-Lifecycle-04", password="ClientOwn-Lifecycle-05")
     db = _fresh_db(papp)
     try:
-        old = db.get(PortalInvitation, invite4_id)
-        assert old.status == "revoked" and old.revoke_reason == "resend"
-        assert old.superseded_by is not None
-        new = db.get(PortalInvitation, old.superseded_by)
-        assert new.status in ("created", "emailed")
+        user = db.get(PortalUser, uid)
+        assert user.must_change_password is False
+        from app import passwords as _pw2
+        assert _pw2.verify_password(user.password_hash, "ClientOwn-Lifecycle-05")
     finally:
         db.close()
 
-
-# --- 17_03: anti-enumeration -------------------------------------------------------
 
 
 def test_17_03_anti_enumeration(papp, committed_client):
@@ -537,21 +463,6 @@ def test_17_03_anti_enumeration(papp, committed_client):
         r = cc.post("/api/v1/portal/password-reset/request", json={"email": email})
         assert r.status_code == 200, r.text
         assert r.json() == {"ok": True}
-
-    # Invitation verify: invalid / expired / revoked / used → identical 410.
-    owner_id = _make_owner(papp)
-    oc = _owner_client(papp, cc, owner_id)
-    iid, tok = _create_invite(oc, "oracle@example.com", "Oracle")
-    r = cc.post("/api/v1/portal/invitations/set-password",
-                json={"token": tok, "password": "correct horse battery staple 77"},
-                headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 201
-    bodies = []
-    for t in ("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", tok):
-        r = cc.post("/api/v1/portal/invitations/verify", json={"token": t})
-        assert r.status_code == 410
-        bodies.append((r.json()["code"], r.json()["message"]))
-    assert bodies[0] == bodies[1] == ("invitation_invalid", bodies[0][1])
 
 
 # --- 17_04: stuffing budgets -------------------------------------------------------
@@ -614,151 +525,109 @@ def test_17_04_stuffing_budgets(papp, committed_client, db_admin, monkeypatch):
 # --- 17_05: 2FA -----------------------------------------------------------------------
 
 
-def _login_challenge(cc, email, password):
-    r = cc.post("/api/v1/portal/login", json={"email": email, "password": password})
-    assert r.status_code == 202, r.text
-    return r.json()["challenge_id"]
-
-
-def test_17_05_totp_five_strikes_and_sms(papp, committed_client, db_admin):
-    _seed_terms(papp)
-    cc = committed_client
-    owner_id = _make_owner(papp)
-    oc = _owner_client(papp, cc, owner_id)
-    # The test performs many logins; keep the stuffing budgets out of the way
-    # (2FA behavior, not rate limiting, is under test).
-    def _clear_budgets():
-        with db_admin.begin() as conn:
-            conn.execute(text("DELETE FROM rate_windows"))
-    _clear_budgets()
-
-    # Client WITH a verified phone (D-26: invite-supplied phone pre-verified).
-    c, user_id, _iid = _onboard_client(
-        papp, cc, oc, "sms.client@example.com", phone="+16045550101")
-
-    # 5 wrong TOTP codes → challenge consumed; restart at password.
-    challenge = _login_challenge(c, "sms.client@example.com",
-                                 "correct horse battery staple 123")
-    for _ in range(5):
-        r = c.post("/api/v1/portal/login/2fa",
-                   json={"challenge_id": challenge, "code": "000000"})
-        assert r.status_code == 401, r.text
-    r = c.post("/api/v1/portal/login/2fa",
-               json={"challenge_id": challenge, "code": "000000"})
-    assert r.status_code == 410 and r.json()["code"] == "challenge_consumed"
-
-    # SMS fallback: request → code via outbox snapshot → verify → session.
-    _clear_budgets()
-    challenge = _login_challenge(c, "sms.client@example.com",
-                                 "correct horse battery staple 123")
-    r = c.post("/api/v1/portal/login/sms/request", json={"challenge_id": challenge})
-    assert r.status_code == 200, r.text
-    db = _fresh_db(papp)
-    try:
-        intent = db.query(EmailOutbox).filter(
-            EmailOutbox.kind == "mfa_sms_fallback").order_by(
-            EmailOutbox.created_at.desc()).first()
-        code = intent.frozen_snapshot["fields"]["code"]
-    finally:
-        db.close()
-    # Wrong code first (attempt counting), then the real one.
-    r = c.post("/api/v1/portal/login/sms/verify",
-               json={"challenge_id": challenge, "code": "000000"})
-    assert r.status_code == 401
-    r = c.post("/api/v1/portal/login/sms/verify",
-               json={"challenge_id": challenge, "code": code})
-    assert r.status_code == 200, r.text
-    _sync_cookie(c, r)
-    # SMS code replay → rejected (single-use).
-    challenge2 = _login_challenge(c, "sms.client@example.com",
-                                  "correct horse battery staple 123")
-    r = c.post("/api/v1/portal/login/sms/request", json={"challenge_id": challenge2})
-    assert r.status_code == 200
-    r = c.post("/api/v1/portal/login/sms/verify",
-               json={"challenge_id": challenge2, "code": code})
-    assert r.status_code in (401, 410), r.text
-
-    # No verified phone → 409 sms_not_configured.
-    _clear_budgets()
-    c2, _uid2, _ = _onboard_client(papp, cc, oc, "nophone@example.com")
-    challenge3 = _login_challenge(c2, "nophone@example.com",
-                                  "correct horse battery staple 123")
-    r = c2.post("/api/v1/portal/login/sms/request", json={"challenge_id": challenge3})
-    assert r.status_code == 409 and r.json()["code"] == "sms_not_configured"
-
-    # Owner disables client TOTP → re-enrollment forced at next login.
-    r = oc.post(f"/api/v1/admin/clients/{user_id}/2fa/disable",
-                json={"reason": "client lost authenticator"})
-    assert r.status_code == 200, r.text
-    db = _fresh_db(papp)
-    try:
-        user = db.get(PortalUser, user_id)
-        assert user.totp_enrolled_at is None
-    finally:
-        db.close()
-    # Next login: password → TOTP challenge, but the client must re-enroll.
-    _clear_budgets()
-    challenge4 = _login_challenge(c, "sms.client@example.com",
-                                   "correct horse battery staple 123")
-    r = c.post("/api/v1/portal/login/2fa",
-               json={"challenge_id": challenge4, "code": "000000"})
-    assert r.status_code == 401  # no enrolled secret → cannot verify
-
-    # Client self-disable endpoint does not exist (route-table assertion).
-    spec = cc.get("/openapi.json").json()
-    paths = spec["paths"]
-    assert not any("disable" in p and "2fa" in p and p.startswith("/api/v1/portal")
-                   for p in paths), [p for p in paths if "2fa" in p]
-
-
-def test_17_05b_totp_enroll_two_codes_and_recovery(papp, committed_client):
-    """TOTP enroll: two consecutive codes required; recovery codes shown once
-    and accepted at /login/2fa."""
-    _seed_terms(papp)
-    cc = committed_client
-    owner_id = _make_owner(papp)
-    oc = _owner_client(papp, cc, owner_id)
+def _login_temp(papp, email, temp_password):
+    """Log in with a temporary password; returns (TestClient, response)."""
     from fastapi.testclient import TestClient
-
-    invite_id, token = _create_invite(oc, "enroll@example.com", "Enroll Client")
     c = TestClient(papp, raise_server_exceptions=False)
-    r = c.post("/api/v1/portal/invitations/set-password",
-               json={"token": token, "password": "correct horse battery staple 55"},
-               headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 201
+    r = c.post("/api/v1/portal/login",
+               json={"email": email, "password": temp_password})
+    assert r.status_code == 202, r.text
     _sync_cookie(c, r)
-    r = c.get("/api/v1/portal/terms/current")
-    r = c.post("/api/v1/portal/terms/accept", json={"version_hash": r.json()["version_hash"]})
-    assert r.status_code == 200
-    r = c.post("/api/v1/portal/2fa/enroll")
-    secret = r.json()["manual_key"]
-    code1, code2 = _totp_pair(secret)
-    # Same code twice → rejected (must be two CONSECUTIVE codes).
-    r = c.post("/api/v1/portal/2fa/confirm", json={"code": code1, "code2": code1})
-    assert r.status_code == 401 and r.json()["code"] == "2fa_invalid", r.text
-    r = c.post("/api/v1/portal/2fa/confirm", json={"code": code1, "code2": code2})
-    assert r.status_code == 200, r.text
-    recovery = r.json()["recovery_codes"]
-    assert len(recovery) == 10
-    # Recovery codes are shown once: enroll again issues a NEW secret.
-    r = c.post("/api/v1/portal/2fa/enroll")
-    assert r.status_code == 409  # already enrolled
-    # A recovery code works at /login/2fa.
-    challenge = _login_challenge(c, "enroll@example.com",
-                                 "correct horse battery staple 55")
-    r = c.post("/api/v1/portal/login/2fa",
-               json={"challenge_id": challenge, "code": recovery[0]})
-    assert r.status_code == 200, r.text
-    _sync_cookie(c, r)
-    # …and is single-use.
-    challenge = _login_challenge(c, "enroll@example.com",
-                                 "correct horse battery staple 55")
-    r = c.post("/api/v1/portal/login/2fa",
-               json={"challenge_id": challenge, "code": recovery[0]})
-    assert r.status_code == 401
+    return c, r
 
 
-# --- 17_06: sessions -----------------------------------------------------------------------
+def _login_password(client, email, password):
+    """Password-only login on an existing client; syncs the session cookie."""
+    r = client.post("/api/v1/portal/login",
+                    json={"email": email, "password": password})
+    assert r.status_code == 202, r.text
+    _sync_cookie(client, r)
+    return r
+
+
+def test_17_05_temp_password_forced_change(papp, committed_client):
+    """Temporary-password login forces a password change before any portal
+    use: the dashboard 403s with password_change_required until the client
+    chooses their own password."""
+    _seed_terms(papp)
+    cc = committed_client
+    owner_id = _make_owner(papp)
+    oc = _owner_client(papp, cc, owner_id)
+    _create_invite(oc, "tempflow@example.com", "Temp Flow",
+                   temp_password="TempPass-Flow-06")
+
+    c, r = _login_temp(papp, "tempflow@example.com", "TempPass-Flow-06")
+    assert r.json()["next"] == "change_password"
+
+    # Every portal route is gated until the password is replaced.
+    for path in ("/api/v1/portal/dashboard", "/api/v1/portal/documents"):
+        r = c.get(path)
+        assert r.status_code == 403 and r.json()["code"] == "password_change_required", (path, r.text)
+    # ...except the password-change endpoint itself (pre-gate).
+    r = c.post("/api/v1/portal/password/change",
+               json={"new_password": "short"})
+    assert r.status_code == 422, r.text  # policy still enforced
+
+    # The new password must differ from the temporary one.
+    r = c.post("/api/v1/portal/password/change",
+               json={"new_password": "TempPass-Flow-06"})
+    assert r.status_code == 422, r.text
+    assert any(f["field"] == "new_password" for f in r.json().get("fields", []))
+
+    r = c.post("/api/v1/portal/password/change",
+               json={"new_password": "ClientOwn-Flow-07"})
+    assert r.status_code == 200, r.text
+    assert r.json()["next"] == "terms"
+
+    # The temporary password no longer works.
+    from fastapi.testclient import TestClient as _TC
+    c2 = _TC(papp, raise_server_exceptions=False)
+    r2 = c2.post("/api/v1/portal/login",
+                 json={"email": "tempflow@example.com",
+                       "password": "TempPass-Flow-06"})
+    assert r2.status_code == 401, r2.text
+    # The new password does.
+    c3, r3 = _login_temp(papp, "tempflow@example.com", "ClientOwn-Flow-07")
+    assert r3.json()["next"] == "terms"
+
+
+def test_17_05b_owner_password_reset(papp, committed_client):
+    """Owner password reset: new temporary password, forced change on next
+    login, all sessions revoked."""
+    _seed_terms(papp)
+    cc = committed_client
+    owner_id = _make_owner(papp)
+    oc = _owner_client(papp, cc, owner_id)
+    c, user_id, _ = _onboard_client(papp, cc, oc, "resetflow@example.com", "Reset Flow")
+
+    # Owner resets with a reason; the client is signed out everywhere.
+    r = oc.post(f"/api/v1/admin/clients/{user_id}/password/reset",
+                json={"temp_password": "TempPass-Reset-08",
+                      "reason": "client forgot password"})
+    assert r.status_code == 200, r.text
+    assert r.json()["must_change_password"] is True
+
+    # Old password dead, old session dead.
+    r = c.get("/api/v1/portal/dashboard")
+    assert r.status_code == 401, r.text
+    from fastapi.testclient import TestClient as _TC2
+    c2 = _TC2(papp, raise_server_exceptions=False)
+    r2 = c2.post("/api/v1/portal/login",
+                 json={"email": "resetflow@example.com",
+                       "password": "ClientOwn-Password-02"})
+    assert r2.status_code == 401, r2.text
+
+    # Temp password works but forces a change.
+    c3, r3 = _login_temp(papp, "resetflow@example.com", "TempPass-Reset-08")
+    assert r3.json()["next"] == "change_password"
+    r = c3.get("/api/v1/portal/dashboard")
+    assert r.status_code == 403 and r.json()["code"] == "password_change_required"
+
+    # Missing reason is rejected.
+    r = oc.post(f"/api/v1/admin/clients/{user_id}/password/reset",
+                json={"temp_password": "TempPass-Reset-08", "reason": ""})
+    assert r.status_code == 422, r.text
+
 
 
 def _set_last_seen(papp, user_id, minutes_ago):
@@ -785,25 +654,13 @@ def test_17_06_sessions(papp, committed_client):
     r = c.get("/api/v1/portal/session")
     assert r.status_code == 401 and r.json()["code"] == "session_expired"
 
-    # Fresh login → banner math: ≤120s remaining shows the warning state.
-    # (Re-login via password+TOTP needs the enrolled secret, unsealed here
-    # with the test KEK — the DB stores it AES-256-GCM encrypted.)
+    # Fresh login -> banner math: <=120s remaining shows the warning state.
+    # (Password-only login now; the session cookie is set directly.)
     _set_last_seen(papp, user_id, 0)
-    db = _fresh_db(papp)
-    try:
-        from app import secretbox as secretbox_lib
-
-        user = db.get(PortalUser, user_id)
-        secret = secretbox_lib.unseal(
-            papp.state.settings.totp_kek, bytes(user.totp_secret_enc)).decode("ascii")
-    finally:
-        db.close()
-    challenge = _login_challenge(c, "session.client@example.com",
-                                 "correct horse battery staple 123")
-    code = totp_lib.code_at(secret)
-    r = c.post("/api/v1/portal/login/2fa",
-               json={"challenge_id": challenge, "code": code})
-    assert r.status_code == 200, r.text
+    r = c.post("/api/v1/portal/login",
+               json={"email": "session.client@example.com",
+                     "password": "ClientOwn-Password-02"})
+    assert r.status_code == 202, r.text
     _sync_cookie(c, r)
 
     # Age to 13.5 min idle → ≤120s left → banner state + one-click extend works.
@@ -826,13 +683,7 @@ def test_17_06_sessions(papp, committed_client):
     # 6th concurrent login evicts the oldest (+ audit event).
     raws = []
     for _ in range(6):
-        challenge = _login_challenge(c, "session.client@example.com",
-                                     "correct horse battery staple 123")
-        code = totp_lib.code_at(secret)
-        r = c.post("/api/v1/portal/login/2fa",
-                   json={"challenge_id": challenge, "code": code})
-        assert r.status_code == 200
-        _sync_cookie(c, r)
+        _login_password(c, "session.client@example.com", "ClientOwn-Password-02")
         raws.append(r.headers.get("set-cookie", ""))
     db = _fresh_db(papp)
     try:
@@ -849,13 +700,7 @@ def test_17_06_sessions(papp, committed_client):
     from fastapi.testclient import TestClient
 
     c2 = TestClient(papp, raise_server_exceptions=False)
-    challenge = _login_challenge(c2, "session.client@example.com",
-                                 "correct horse battery staple 123")
-    code = totp_lib.code_at(secret)
-    r = c2.post("/api/v1/portal/login/2fa",
-                json={"challenge_id": challenge, "code": code})
-    assert r.status_code == 200
-    _sync_cookie(c2, r)
+    _login_password(c2, "session.client@example.com", "ClientOwn-Password-02")
     r = c2.get("/api/v1/portal/sessions")
     assert r.status_code == 200, r.text
     body = r.text
@@ -881,12 +726,14 @@ def test_17_07_terms_gate(papp, committed_client):
     oc = _owner_client(papp, cc, owner_id)
     from fastapi.testclient import TestClient
 
-    invite_id, token = _create_invite(oc, "terms.client@example.com", "Terms Client")
-    c = TestClient(papp, raise_server_exceptions=False)
-    r = c.post("/api/v1/portal/invitations/set-password",
-               json={"token": token, "password": "correct horse battery staple 44"},
-               headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 201
+    # Onboard through the forced password change, then stop before terms.
+    invite_id, user_id = _create_invite(oc, "terms.client@example.com", "Terms Client",
+                                        temp_password="TempPass-Terms-10")
+    c, r = _login_temp(papp, "terms.client@example.com", "TempPass-Terms-10")
+    assert r.json()["next"] == "change_password"
+    r = c.post("/api/v1/portal/password/change",
+               json={"new_password": "ClientOwn-Terms-11"})
+    assert r.status_code == 200
     _sync_cookie(c, r)
 
     gated = [
@@ -894,16 +741,18 @@ def test_17_07_terms_gate(papp, committed_client):
         ("GET", "/api/v1/portal/documents", {}),
         ("GET", "/api/v1/portal/filings", {}),
         ("GET", "/api/v1/portal/invoices", {}),
-        # Note: /2fa/* and /sessions are excepted from the gate by design.
+        # Note: /password/* and /sessions are excepted from the gate by design.
     ]
     for method, path, kw in gated:
         r = c.request(method, path, **kw)
         assert r.status_code == 403, (path, r.status_code)
         assert r.json()["code"] == "terms_not_accepted", path
-    # Excepted paths stay reachable pre-accept.
+    # Excepted paths stay reachable pre-accept. /password/change is not
+    # gated (422 for a bad payload proves the route was reached, not 403).
     assert c.get("/api/v1/portal/terms/current").status_code == 200
     assert c.get("/api/v1/portal/session").status_code == 200
-    assert c.post("/api/v1/portal/2fa/enroll").status_code == 200
+    r = c.post("/api/v1/portal/password/change", json={"new_password": "x"})
+    assert r.status_code == 422, r.text
 
     # Stale version_hash → 409 version_mismatch.
     r = c.post("/api/v1/portal/terms/accept",
@@ -927,33 +776,35 @@ def test_17_07_terms_gate(papp, committed_client):
         assert acc.version_hash == vh and acc.accepted_at is not None
     finally:
         db.close()
-    # Gate lifted.
-    assert c.get("/api/v1/portal/dashboard").status_code == 403  # totp_required now
-    assert c.get("/api/v1/portal/dashboard").json()["code"] == "totp_required"
+    # Gate lifted: dashboard reachable (no authenticator step anymore).
+    assert c.get("/api/v1/portal/dashboard").status_code == 200
 
 
 # --- 17_08: set-password idempotency -------------------------------------------------------
 
 
-def test_17_08_set_password_idempotent(papp, committed_client):
+def test_17_08_invite_create_idempotent(papp, committed_client):
+    """Invitation creation is idempotent: same key -> one user row, replayed
+    result; same key + different non-credential fields -> conflict. The
+    temporary password is excluded from the idempotency payload (credential
+    material), so a retry with a different temp password replays the first
+    result rather than changing the password."""
     _seed_terms(papp)
     cc = committed_client
     owner_id = _make_owner(papp)
     oc = _owner_client(papp, cc, owner_id)
-    from fastapi.testclient import TestClient
 
-    invite_id, token = _create_invite(oc, "idem.client@example.com", "Idem Client")
-    c = TestClient(papp, raise_server_exceptions=False)
     key = _idem_key()
-    # Double-submit with the SAME key → one portal_users row, same result.
     bodies = []
     for _ in range(2):
-        r = c.post("/api/v1/portal/invitations/set-password",
-                   json={"token": token, "password": "correct horse battery staple 66"},
-                   headers={"Idempotency-Key": key})
-        bodies.append((r.status_code, r.json().get("replayed")))
+        r = oc.post("/api/v1/admin/invitations",
+                    json={"client_name": "Idem Client", "email": "idem.client@example.com",
+                          "temp_password": "TempPass-Idem-13"},
+                    headers={"Idempotency-Key": key})
+        bodies.append((r.status_code, r.json().get("replayed"), r.json().get("id")))
     assert bodies[0][0] == 201 and bodies[1][0] == 201
     assert bodies[1][1] is True  # replayed
+    assert bodies[0][2] == bodies[1][2]
     db = _fresh_db(papp)
     try:
         n = db.query(PortalUser).filter(
@@ -961,14 +812,21 @@ def test_17_08_set_password_idempotent(papp, committed_client):
         assert n == 1
     finally:
         db.close()
-    # Same key + DIFFERENT password → 409 idempotency_conflict.
-    r = c.post("/api/v1/portal/invitations/set-password",
-               json={"token": token, "password": "a totally different horse 67"},
-               headers={"Idempotency-Key": key})
+    # Same key + different temp password -> still replays (password excluded
+    # from the payload); the stored password is the FIRST one.
+    r = oc.post("/api/v1/admin/invitations",
+                json={"client_name": "Idem Client", "email": "idem.client@example.com",
+                      "temp_password": "TempPass-Idem-14-DIFFERENT"},
+                headers={"Idempotency-Key": key})
+    assert r.status_code == 201 and r.json().get("replayed") is True
+    assert r.json()["id"] == bodies[0][2]
+    # Same key + different name -> 409 idempotency_conflict.
+    r = oc.post("/api/v1/admin/invitations",
+                json={"client_name": "Different Name", "email": "idem.client@example.com",
+                      "temp_password": "TempPass-Idem-13"},
+                headers={"Idempotency-Key": key})
     assert r.status_code == 409 and r.json()["code"] == "idempotency_conflict"
 
-
-# --- 17_09: password reset -----------------------------------------------------------------------
 
 
 def test_17_09_password_reset(papp, committed_client):
@@ -1002,21 +860,7 @@ def test_17_09_password_reset(papp, committed_client):
     r = c.post("/api/v1/portal/password-reset/verify", json={"token": reset_token})
     assert r.status_code == 200
     # Mint a second session first so "all sessions revoked" is meaningful.
-    from app import secretbox as secretbox_lib
-
-    db = _fresh_db(papp)
-    try:
-        user = db.get(PortalUser, user_id)
-        secret = secretbox_lib.unseal(
-            papp.state.settings.totp_kek, bytes(user.totp_secret_enc)).decode("ascii")
-    finally:
-        db.close()
-    challenge = _login_challenge(c, "reset.client@example.com",
-                                 "correct horse battery staple 123")
-    r = c.post("/api/v1/portal/login/2fa",
-               json={"challenge_id": challenge, "code": totp_lib.code_at(secret)})
-    assert r.status_code == 200
-    _sync_cookie(c, r)
+    _login_password(c, "reset.client@example.com", "ClientOwn-Password-02")
     r = c.post("/api/v1/portal/password-reset/complete",
                json={"token": reset_token,
                      "new_password": "brand new horse battery staple 1"},
@@ -1082,7 +926,7 @@ def test_17_10_db_leak_drill(papp, committed_client):
                                        password="leak drill horse staple 1")
 
     # Collect the raw secrets a leak would expose.
-    invite_id, invite_token = _create_invite(oc, "leak2@example.com", "Leak Two")
+    invite_id, leak_user_id = _create_invite(oc, "leak2@example.com", "Leak Two")
     r = c.post("/api/v1/portal/password-reset/request",
                json={"email": "leak.client@example.com"})
     assert r.status_code == 200
@@ -1101,7 +945,6 @@ def test_17_10_db_leak_drill(papp, committed_client):
                                 intent.frozen_snapshot["fields"].get("reset_url", "")).group(1)
         user = db.get(PortalUser, user_id)
         password_hash = user.password_hash
-        totp_enc = bytes(user.totp_secret_enc)
         sessions = db.query(SessionRow).filter(SessionRow.user_id == user_id).all()
         # s.id values are the SHA-256 digests (correct to store); the RAW
         # token is what must never appear.
@@ -1112,19 +955,10 @@ def test_17_10_db_leak_drill(papp, committed_client):
     from fastapi.testclient import TestClient
 
     c2 = TestClient(papp, raise_server_exceptions=False)
-    challenge = _login_challenge(c2, "leak.client@example.com", "leak drill horse staple 1")
-    db = _fresh_db(papp)
-    try:
-        from app import secretbox as secretbox_lib
-
-        user = db.get(PortalUser, user_id)
-        secret = secretbox_lib.unseal(
-            papp.state.settings.totp_kek, bytes(user.totp_secret_enc)).decode("ascii")
-    finally:
-        db.close()
-    r = c2.post("/api/v1/portal/login/2fa",
-                json={"challenge_id": challenge, "code": totp_lib.code_at(secret)})
-    assert r.status_code == 200
+    r = c2.post("/api/v1/portal/login",
+                json={"email": "leak.client@example.com",
+                      "password": "leak drill horse staple 1"})
+    assert r.status_code == 202, r.text
     _sync_cookie(c2, r)
     raw_cookie = r.headers.get("set-cookie", "")
 
@@ -1152,13 +986,9 @@ def test_17_10_db_leak_drill(papp, committed_client):
     finally:
         db.close()
 
-    assert invite_token not in blob
     assert reset_token not in blob
     assert "leak drill horse staple 1" not in blob  # plaintext password
     assert password_hash in blob  # the hash IS stored (and is not reversible here)
-    assert secret not in blob  # TOTP secret never plaintext
-    # The stored secret is the AES-256-GCM ciphertext: opaque and not the raw secret.
-    assert totp_enc != secret.encode("ascii")
     # The raw session cookie value must not appear either (digests only in DB).
     m = re.search(r"jaro_session=([A-Za-z0-9_-]+)", raw_cookie)
     assert m and m.group(1) not in blob
@@ -1177,26 +1007,16 @@ AUTH_INVENTORY = [
     ("POST", "/api/v1/admin/invitations"),
     ("GET", "/api/v1/admin/invitations"),
     ("GET", "/api/v1/admin/invitations/{invitation_id}"),
-    ("POST", "/api/v1/admin/invitations/{invitation_id}/resend"),
     ("POST", "/api/v1/admin/invitations/{invitation_id}/revoke"),
+    ("POST", "/api/v1/admin/clients/{client_id}/password/reset"),
     ("GET", "/api/v1/admin/password-resets"),
-    ("POST", "/api/v1/portal/invitations/verify"),
-    ("POST", "/api/v1/portal/invitations/set-password"),
     ("POST", "/api/v1/portal/login"),
-    ("POST", "/api/v1/portal/login/2fa"),
-    ("POST", "/api/v1/portal/login/sms/request"),
-    ("POST", "/api/v1/portal/login/sms/verify"),
     ("POST", "/api/v1/portal/password-reset/request"),
     ("POST", "/api/v1/portal/password-reset/verify"),
     ("POST", "/api/v1/portal/password-reset/complete"),
     ("POST", "/api/v1/portal/password/change"),
     ("GET", "/api/v1/portal/terms/current"),
     ("POST", "/api/v1/portal/terms/accept"),
-    ("GET", "/api/v1/portal/2fa/status"),
-    ("POST", "/api/v1/portal/2fa/enroll"),
-    ("POST", "/api/v1/portal/2fa/confirm"),
-    ("POST", "/api/v1/portal/phone/request-code"),
-    ("POST", "/api/v1/portal/phone/verify"),
     ("GET", "/api/v1/portal/session"),
     ("POST", "/api/v1/portal/logout"),
     ("DELETE", "/api/v1/portal/session"),
@@ -1218,7 +1038,7 @@ PORTAL_INVENTORY = [
     ("GET", "/api/v1/admin/clients"),
     ("GET", "/api/v1/admin/clients/{client_id}"),
     ("PATCH", "/api/v1/admin/clients/{client_id}"),
-    ("POST", "/api/v1/admin/clients/{client_id}/2fa/disable"),
+    ("POST", "/api/v1/admin/clients/{client_id}/password/reset"),
     ("POST", "/api/v1/admin/clients/{client_id}/sessions/revoke-all"),
     ("POST", "/api/v1/admin/clients/{client_id}/documents"),
     ("GET", "/api/v1/admin/clients/{client_id}/documents/{document_id}/download"),
@@ -1251,8 +1071,8 @@ def test_17_11_docs_as_tests(papp, committed_client):
 
     for code in ("bootstrap_consumed", "bootstrap_unavailable", "invitation_invalid",
                  "invitation_active", "client_exists", "invalid_credentials",
-                 "challenge_consumed", "sms_not_configured", "totp_required",
-                 "totp_already_enrolled", "totp_not_enrolled", "reset_invalid",
+                 "challenge_consumed", "totp_required", "password_change_required",
+                 "totp_already_enrolled", "reset_invalid",
                  "version_mismatch", "filing_not_found", "filing_transition_invalid",
                  "invoice_not_found", "invoice_not_payable", "invoice_not_voidable",
                  "document_not_found", "file_too_large", "session_not_found",
@@ -1780,7 +1600,7 @@ def test_17_17_migration_rehearsal(scratch_db_url):
 
     from app import alembic_heads
 
-    assert alembic_heads.head_revision() == "0014"
+    assert alembic_heads.head_revision() == "0015"
     cfg = Config()
     cfg.set_main_option(
         "script_location",
@@ -1834,10 +1654,10 @@ def test_17_17_migration_rehearsal(scratch_db_url):
 
 
 def test_17_18_session_committed_before_response_sent(papp, committed_client):
-    """A4 regression (2026-10-06): the session minted by set-password must be
-    committed BEFORE the 201 bytes are sent. A client acting immediately on
-    the Set-Cookie (the portal JS redirects straight to terms) must never
-    see a spurious 401 session_expired.
+    """A4 regression (2026-10-06): the session minted by login must be
+    committed BEFORE the 202 bytes are sent. A client acting immediately on
+    the Set-Cookie (the portal JS redirects straight to the next step) must
+    never see a spurious 401 session_expired.
 
     Root cause of the intermittent journey failure: FastAPI sends the
     response before closing the request AsyncExitStack, so the old
@@ -1861,18 +1681,15 @@ def test_17_18_session_committed_before_response_sent(papp, committed_client):
     owner_id = _make_owner(papp)
     oc = _owner_client(papp, committed_client, owner_id)
     email = "commit.race@example.com"
-    _, token = _create_invite(oc, email)
+    _create_invite(oc, email, temp_password="TempPass-Commit-15")
 
     c = TestClient(papp, raise_server_exceptions=False)
-    r = c.post("/api/v1/portal/invitations/verify", json={"token": token})
-    assert r.status_code == 200, r.text
-    r = c.post("/api/v1/portal/invitations/set-password",
-               json={"token": token, "password": "correct horse battery staple 123"},
-               headers={"Idempotency-Key": _idem_key()})
-    assert r.status_code == 201, r.text
+    r = c.post("/api/v1/portal/login",
+               json={"email": email, "password": "TempPass-Commit-15"})
+    assert r.status_code == 202, r.text
     m = re.search(rf"{re.escape(sessions_lib.COOKIE_NAME)}=([^;]+)",
                   r.headers.get("set-cookie", ""))
-    assert m, "set-password did not set a session cookie"
+    assert m, "login did not set a session cookie"
     raw = m.group(1)
 
     # The session row is committed before the 201 was sent: visible in a

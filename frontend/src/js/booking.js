@@ -63,7 +63,7 @@ function handleRouteError(err, context) {
     showError(
       "We couldn't check Jared's live calendar just now, so no times are shown. " +
       "This is deliberate — we'd rather show nothing than a time that isn't real. " +
-      "Call 1-(778)-227-4891 and we'll book you in directly."
+      "Call [[contact.phone]] and we'll book you in directly."
     );
     return;
   }
@@ -192,7 +192,7 @@ function showCalendarError() {
   status.innerHTML =
     "We couldn't reach the live calendar, so no days are shown. " +
     '<button type="button" class="linklike" id="bw-calendar-retry">Try again</button> ' +
-    "or call 1-(778)-227-4891.";
+    "or call [[contact.phone]].";
   const retry = $("bw-calendar-retry");
   if (retry) retry.onclick = () => loadCalendar();
 }
