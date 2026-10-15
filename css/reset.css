@@ -1,0 +1,11 @@
+@layer reset {
+  /* Zero-specificity reset: :where() keeps every rule at specificity 0. */
+  :where(*, *::before, *::after) { box-sizing: border-box; }
+  :where(body, h1, h2, h3, h4, h5, h6, p, ul, ol, dl, dd, figure, blockquote, fieldset) { margin: 0; }
+  :where(ul, ol) { padding-inline-start: 0; }
+  :where(img, svg, video) { max-width: 100%; display: block; }
+  :where(img) { height: auto; }
+  :where(input, textarea, select, button) { font: inherit; color: inherit; }
+  :where(button) { background: none; border: none; padding: 0; cursor: pointer; }
+  :where(a) { color: inherit; }
+}

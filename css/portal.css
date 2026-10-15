@@ -1,0 +1,317 @@
+/* Portal styles: login, dashboard, vault, filings, invoices, owner console. */
+
+/* --- layout --------------------------------------------------------------- */
+.portal-page .container--narrow {
+  max-width: 44rem;
+}
+
+.portal-card {
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e0d8);
+  border-radius: 12px;
+  padding: clamp(1.5rem, 4vw, 2.5rem);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+}
+
+.portal-brand {
+  color: var(--brand, #cd2220);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+.portal-posture {
+  color: var(--muted, #6b675e);
+  font-size: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+/* --- help expander ---------------------------------------------------------- */
+.portal-help {
+  margin-top: 1.75rem;
+  border-top: 1px solid var(--border, #e3e0d8);
+  padding-top: 1rem;
+}
+
+.portal-help summary {
+  cursor: pointer;
+  color: var(--brand, #cd2220);
+  font-weight: 600;
+}
+
+.portal-help__body {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.portal-help__body h2 {
+  font-size: 1rem;
+  margin: 1rem 0 0.5rem;
+}
+
+/* --- nav -------------------------------------------------------------------- */
+.portal-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem 0;
+  border-bottom: 2px solid var(--brand, #cd2220);
+  margin-bottom: 1.5rem;
+}
+
+.portal-nav a {
+  text-decoration: none;
+  color: var(--ink, #303030);
+  font-weight: 600;
+}
+
+.portal-nav a[aria-current="page"] {
+  color: var(--brand, #cd2220);
+}
+
+.portal-nav .link-button {
+  margin-left: auto;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--brand, #cd2220);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+/* --- sections / lists --------------------------------------------------------- */
+.portal-section {
+  margin: 2rem 0;
+}
+
+.portal-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.portal-list li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border, #e3e0d8);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+}
+
+.portal-list__meta {
+  color: var(--muted, #6b675e);
+  font-size: 0.9rem;
+}
+
+.portal-list__time {
+  color: var(--muted, #6b675e);
+  font-size: 0.85rem;
+  min-width: 10rem;
+}
+
+.portal-empty {
+  color: var(--muted, #6b675e);
+}
+
+.portal-attention {
+  border: 1px solid var(--brand, #cd2220);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+}
+
+.portal-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.portal-card-mini {
+  border: 1px solid var(--border, #e3e0d8);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.portal-card-mini h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+/* --- session banner ------------------------------------------------------------- */
+.session-banner {
+  background: #fff7e6;
+  border: 2px solid #b8860b;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.session-banner p {
+  margin: 0;
+  flex: 1 1 16rem;
+}
+
+/* --- modal ------------------------------------------------------------------------ */
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.modal[hidden] {
+  display: none;
+}
+
+.modal__box {
+  background: var(--surface, #fff);
+  border-radius: 12px;
+  padding: 2rem;
+  max-width: 40rem;
+  width: 100%;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal__actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.terms-body {
+  border: 1px solid var(--border, #e3e0d8);
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 40vh;
+  overflow: auto;
+  margin: 1rem 0;
+}
+
+/* --- TOTP --------------------------------------------------------------------------- */
+.totp-key {
+  background: var(--surface-alt, #f7f5f0);
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.recovery-codes {
+  columns: 2;
+  font-size: 1.05rem;
+  background: var(--surface-alt, #f7f5f0);
+  padding: 1rem 1rem 1rem 2.5rem;
+  border-radius: 6px;
+  margin: 1rem 0;
+}
+
+/* --- timeline ------------------------------------------------------------------------- */
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.timeline__step {
+  display: flex;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  color: var(--muted, #6b675e);
+}
+
+.timeline__step--current {
+  color: var(--ink, #303030);
+  font-weight: 700;
+}
+
+/* --- invoice table ---------------------------------------------------------------------- */
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.invoice-table th,
+.invoice-table td {
+  text-align: left;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border, #e3e0d8);
+}
+
+/* --- dossier ------------------------------------------------------------------------------ */
+.dossier-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border, #e3e0d8);
+}
+
+.dossier-tabs [role="tab"] {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+.dossier-tabs [role="tab"][aria-selected="true"] {
+  border-bottom-color: var(--brand, #cd2220);
+  color: var(--brand, #cd2220);
+}
+
+.dossier-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1.5rem;
+  margin: 1rem 0;
+}
+
+.dossier-facts dt {
+  font-weight: 600;
+}
+
+.dossier-facts dd {
+  margin: 0;
+}
+
+.notice {
+  background: #eef6ee;
+  border: 1px solid #2e7d32;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* --- responsive ------------------------------------------------------------------------------ */
+@media (max-width: 40rem) {
+  .portal-nav {
+    gap: 0.75rem;
+  }
+
+  .recovery-codes {
+    columns: 1;
+  }
+}

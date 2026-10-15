@@ -1,0 +1,13 @@
+/* Jaro Accounting — the ONLY stylesheet any page links.
+   @layer order declared FIRST (AR1); every rule lives in a layer, because
+   unlayered author styles beat ALL layered ones. */
+@layer reset, tokens, base, layout, components, utilities, print;
+
+@import url("reset.css") layer(reset);
+@import url("tokens.css") layer(tokens);
+@import url("base.css") layer(base);
+@import url("layout.css") layer(layout);
+@import url("components.css") layer(components);
+@import url("booking.css") layer(components);
+@import url("utilities.css") layer(utilities);
+@import url("print.css") layer(print);
