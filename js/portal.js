@@ -3,6 +3,7 @@ import {
   portalApi, ApiRequestError, startSessionWatch, initPortalChrome,
   esc, vancouverDateTime,
 } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const root = document.getElementById("portal-root");
 const errorBox = document.getElementById("portal-error");
@@ -21,7 +22,7 @@ function showError(msg) {
 
 document.getElementById("portal-logout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/jaro-accounting-rebuild/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 // --- terms gate (no dismiss: Accept or Sign out) -------------------------------
@@ -55,7 +56,7 @@ document.getElementById("terms-accept").addEventListener("click", async () => {
 
 document.getElementById("terms-signout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/jaro-accounting-rebuild/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 // --- dashboard ---------------------------------------------------------------------
@@ -146,11 +147,11 @@ async function boot() {
     if (err instanceof ApiRequestError && err.code === "password_change_required") {
       // Temporary-password session landed here directly: the login page
       // shows the forced-change form for sessions in this state.
-      window.location.href = "/jaro-accounting-rebuild/portal/login/";
+      window.location.href = withBase("/portal/login/");
       return;
     }
     if (err instanceof ApiRequestError && err.status === 401) {
-      window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+      window.location.href = withBase("/portal/login?reason=session-expired");
       return;
     }
     showError(err.message || "Couldn't load your dashboard.");
@@ -162,7 +163,7 @@ async function boot() {
   initPortalChrome();
   const termsOk = await ensureTerms().catch((err) => {
     if (err instanceof ApiRequestError && err.status === 401) {
-      window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+      window.location.href = withBase("/portal/login?reason=session-expired");
     } else showError(err.message);
     return false;
   });

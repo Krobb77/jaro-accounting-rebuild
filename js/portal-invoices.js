@@ -3,6 +3,7 @@ import {
   portalApi, ApiRequestError, startSessionWatch, requireSession,
   initPortalChrome, esc, vancouverDateTime,
 } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const root = document.getElementById("invoices-root");
 const errorBox = document.getElementById("portal-error");
@@ -16,7 +17,7 @@ function showError(msg) {
 
 document.getElementById("portal-logout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/jaro-accounting-rebuild/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 function money(cents) {
@@ -87,7 +88,7 @@ async function showDetail(id) {
       <p>Subtotal: ${money(inv.subtotal_cents)} &middot; Tax: ${money(inv.tax_cents)}</p>
       <p><strong>Total due: ${money(inv.total_cents)}</strong></p>
       ${inv.memo ? `<p>Memo: ${esc(inv.memo)}</p>` : ""}
-      <p><a class="btn btn--small" href="/jaro-accounting-rebuild/api/v1/portal/invoices/${encodeURIComponent(inv.id)}/pdf">Download PDF</a></p>
+      <p><a class="btn btn--small" href="/api/v1/portal/invoices/${encodeURIComponent(inv.id)}/pdf">Download PDF</a></p>
     </section>`;
     detailEl.innerHTML = html;
     detailEl.scrollIntoView({ block: "nearest" });
@@ -104,7 +105,7 @@ async function showDetail(id) {
     await loadInvoices();
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) {
-      window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+      window.location.href = withBase("/portal/login?reason=session-expired");
       return;
     }
     showError(err.message || "Couldn't load your invoices.");

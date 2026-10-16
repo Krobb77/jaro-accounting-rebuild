@@ -1,5 +1,6 @@
 /* /portal/reset-password — request + complete (token in query string). */
 import { portalApi, ApiRequestError, idempotencyKey } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const errorBox = document.getElementById("reset-error");
 const requestForm = document.getElementById("reset-request-form");
@@ -59,7 +60,7 @@ completeForm.addEventListener("submit", async (e) => {
       json: { token, new_password: pw },
       headers: { "Idempotency-Key": idempotencyKey() },
     });
-    window.location.href = "/jaro-accounting-rebuild/portal/login?reason=reset-complete";
+    window.location.href = withBase("/portal/login?reason=reset-complete");
   } catch (err) {
     if (err instanceof ApiRequestError && err.code === "validation_failed") {
       showError(err.fields.map((f) => f.message).join(" ") || err.message);

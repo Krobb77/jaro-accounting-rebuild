@@ -3,6 +3,7 @@ import {
   portalApi, ApiRequestError, startSessionWatch, requireSession,
   initPortalChrome, esc, vancouverDateTime,
 } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const root = document.getElementById("filings-root");
 const errorBox = document.getElementById("portal-error");
@@ -28,7 +29,7 @@ function showError(msg) {
 
 document.getElementById("portal-logout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/jaro-accounting-rebuild/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 async function loadFilings() {
@@ -51,7 +52,7 @@ async function loadFilings() {
       <p>Status: <strong>${esc(STATUS_LABELS[f.status] || f.status)}</strong></p>
       ${f.note ? `<aside class="portal-callout" aria-label="Note from Jared">
         <p><strong>From Jared:</strong> ${esc(f.note)}</p>
-        <p><a href="/jaro-accounting-rebuild/portal/documents/">Go to Documents</a></p>
+        <p><a href="/portal/documents/">Go to Documents</a></p>
       </aside>` : ""}
       <ol class="timeline">`;
     for (const status of STATUS_ORDER) {
@@ -76,7 +77,7 @@ async function loadFilings() {
     await loadFilings();
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) {
-      window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+      window.location.href = withBase("/portal/login?reason=session-expired");
       return;
     }
     showError(err.message || "Couldn't load your filings.");

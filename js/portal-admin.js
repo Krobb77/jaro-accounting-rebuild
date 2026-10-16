@@ -3,6 +3,7 @@ import {
   adminApi, portalApi, ApiRequestError,
   initPortalChrome, idempotencyKey, esc, vancouverDateTime,
 } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const errorBox = document.getElementById("admin-error");
 const clientsRoot = document.getElementById("clients-root");
@@ -21,7 +22,7 @@ function showError(msg) {
 
 document.getElementById("admin-logout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/jaro-accounting-rebuild/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 // --- at-a-glance (P20) ---------------------------------------------------------------
@@ -151,7 +152,7 @@ async function renderDossier() {
     html += `<ul class="portal-list">` + (d.documents || []).map((doc) =>
       `<li><strong>${esc(doc.original_filename)}</strong>
        <span class="portal-list__meta">${esc(vancouverDateTime(doc.created_at))}${doc.deleted_at ? " · retired" : ""}</span>
-       <a class="btn btn--small" href="/jaro-accounting-rebuild/api/v1/admin/clients/${encodeURIComponent(currentClientId)}/documents/${encodeURIComponent(doc.id)}/download">Download</a>
+       <a class="btn btn--small" href="/api/v1/admin/clients/${encodeURIComponent(currentClientId)}/documents/${encodeURIComponent(doc.id)}/download">Download</a>
        ${doc.deleted_at ? "" : `<button type="button" class="btn btn--small" data-retire="${esc(doc.id)}">Retire</button>`}
       </li>`).join("") + `</ul>
       <h4>Upload for this client</h4>
@@ -376,7 +377,7 @@ async function loadAudit() {
     await loadAudit();
   } catch (err) {
     if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-      window.location.href = "/jaro-accounting-rebuild/portal/login/";
+      window.location.href = withBase("/portal/login/");
       return;
     }
     showError(err.message || "Couldn't load the console.");

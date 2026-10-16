@@ -29,7 +29,7 @@
   <div class="utility-lane">
     <div class="container utility-lane__inner">
       <a class="utility-login" href="/jaro-accounting-rebuild/portal/login">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1a3 3 0 0 0-3 3v3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-1.5 6V4a1.5 1.5 0 0 1 3 0v3h-3z"/></svg>
+        <svg viewbox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 1a3 3 0 0 0-3 3v3H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-1V4a3 3 0 0 0-3-3zm-1.5 6V4a1.5 1.5 0 0 1 3 0v3h-3z" /></svg>
         <span>Client Login</span>
       </a>
       <span class="utility-lane__spacer" aria-hidden="true"></span>
@@ -82,19 +82,15 @@
         <form id="login-form" novalidate>
           <div class="form-field">
             <label for="login-email">Email address</label>
-            <input id="login-email" name="email" type="email" autocomplete="username"
-                   required maxlength="320" aria-describedby="login-email-hint login-email-error">
+            <input id="login-email" name="email" type="email" autocomplete="username" required maxlength="320" aria-describedby="login-email-hint login-email-error">
             <p class="form-hint" id="login-email-hint">The email address Jared set up your account with.</p>
             <p class="field-error" id="login-email-error" hidden></p>
           </div>
           <div class="form-field">
             <label for="login-password">Password</label>
             <div class="password-wrap">
-              <input id="login-password" name="password" type="password"
-                     autocomplete="current-password" required
-                     aria-describedby="login-password-error">
-              <button type="button" id="login-password-toggle" class="password-toggle" hidden
-                      aria-label="Show password" aria-pressed="false">Show</button>
+              <input id="login-password" name="password" type="password" autocomplete="current-password" required aria-describedby="login-password-error">
+              <button type="button" id="login-password-toggle" class="password-toggle" hidden aria-label="Show password" aria-pressed="false">Show</button>
             </div>
             <p class="field-error" id="login-password-error" hidden></p>
           </div>
@@ -109,11 +105,8 @@
           <div class="form-field">
             <label for="new-password">New password</label>
             <div class="password-wrap">
-              <input id="new-password" name="new_password" type="password"
-                     autocomplete="new-password" required minlength="12" maxlength="256"
-                     aria-describedby="new-password-error">
-              <button type="button" id="new-password-toggle" class="password-toggle" hidden
-                      aria-label="Show password" aria-pressed="false">Show</button>
+              <input id="new-password" name="new_password" type="password" autocomplete="new-password" required minlength="12" maxlength="256" aria-describedby="new-password-error">
+              <button type="button" id="new-password-toggle" class="password-toggle" hidden aria-label="Show password" aria-pressed="false">Show</button>
             </div>
             <p class="field-error" id="new-password-error" hidden></p>
             <ul class="pw-checklist" id="new-password-checklist" aria-label="Password requirements">
@@ -123,9 +116,7 @@
           </div>
           <div class="form-field">
             <label for="new-password-confirm">Confirm new password</label>
-            <input id="new-password-confirm" name="new_password_confirm" type="password"
-                   autocomplete="new-password" required
-                   aria-describedby="new-password-confirm-error">
+            <input id="new-password-confirm" name="new_password_confirm" type="password" autocomplete="new-password" required aria-describedby="new-password-confirm-error">
             <p class="field-error" id="new-password-confirm-error" hidden></p>
           </div>
           <button class="btn" type="submit" id="change-password-submit">Set password and continue</button>

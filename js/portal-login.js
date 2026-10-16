@@ -11,6 +11,7 @@
  * - a forced password-change screen for temporary-password onboarding.
  */
 import { portalApi, ApiRequestError, pollSession } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const loginForm = document.getElementById("login-form");
 const changeForm = document.getElementById("change-password-form");
@@ -91,7 +92,7 @@ pollSession().then(
     if (session && session.must_change_password) {
       showChangeForm();
     } else {
-      window.location.href = "/jaro-accounting-rebuild/portal/";
+      window.location.href = withBase("/portal/");
     }
   },
   () => {}
@@ -154,9 +155,9 @@ loginForm.addEventListener("submit", async (e) => {
     if (res.next === "change_password") {
       showChangeForm();
     } else if (res.next === "terms") {
-      window.location.href = "/jaro-accounting-rebuild/portal/?first=1";
+      window.location.href = withBase("/portal/?first=1");
     } else {
-      window.location.href = "/jaro-accounting-rebuild/portal/";
+      window.location.href = withBase("/portal/");
     }
   } catch (err) {
     showError(err);
@@ -215,9 +216,9 @@ changeForm.addEventListener("submit", async (e) => {
   try {
     const res = await portalApi.post("/password/change", { json: { new_password: pw } });
     if (res.next === "terms") {
-      window.location.href = "/jaro-accounting-rebuild/portal/?first=1";
+      window.location.href = withBase("/portal/?first=1");
     } else {
-      window.location.href = "/jaro-accounting-rebuild/portal/";
+      window.location.href = withBase("/portal/");
     }
   } catch (err) {
     if (err instanceof ApiRequestError && err.code === "validation_failed" && err.fields) {

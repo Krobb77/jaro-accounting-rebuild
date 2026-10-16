@@ -3,6 +3,7 @@ import {
   portalApi, ApiRequestError, startSessionWatch, requireSession,
   initPortalChrome, idempotencyKey, esc, vancouverDateTime,
 } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const root = document.getElementById("docs-root");
 const errorBox = document.getElementById("portal-error");
@@ -20,7 +21,7 @@ function showError(msg) {
 
 document.getElementById("portal-logout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/jaro-accounting-rebuild/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 async function loadDocs() {
@@ -40,7 +41,7 @@ async function loadDocs() {
       ${(d.byte_size / 1024).toFixed(0)} KB &middot;
       ${esc(vancouverDateTime(d.created_at))} &middot;
       ${d.uploaded_by === "owner" ? "shared by Jared" : "uploaded by you"}</span>
-      <a class="btn btn--small" href="/jaro-accounting-rebuild/api/v1/portal/documents/${encodeURIComponent(d.id)}/download">Download</a>
+      <a class="btn btn--small" href="/api/v1/portal/documents/${encodeURIComponent(d.id)}/download">Download</a>
     </li>`;
   }
   root.innerHTML = html + `</ul>`;
@@ -81,7 +82,7 @@ uploadForm.addEventListener("submit", async (e) => {
       // Session-timeout during upload: no data-loss surprise — the upload
       // simply didn't happen; the idempotency key makes a retry safe.
       progressEl.textContent = "";
-      window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+      window.location.href = withBase("/portal/login?reason=session-expired");
       return;
     }
     showError(err.message || "Upload failed. Try again.");
@@ -100,7 +101,7 @@ uploadForm.addEventListener("submit", async (e) => {
     await loadDocs();
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) {
-      window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+      window.location.href = withBase("/portal/login?reason=session-expired");
       return;
     }
     showError(err.message || "Couldn't load your documents.");

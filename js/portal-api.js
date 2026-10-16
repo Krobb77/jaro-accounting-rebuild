@@ -1,3 +1,4 @@
+import { withBase } from "./site-base.js";
 /* Shared portal API client — imported by every portal page script.
  * No side effects on import.
  *
@@ -118,7 +119,7 @@ export function startSessionWatch(opts = {}) {
       if (err instanceof ApiRequestError && err.status === 401) {
         stop();
         if (onExpired) onExpired(err);
-        else window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+        else window.location.href = withBase("/portal/login?reason=session-expired");
       }
       // Network blips: keep the last known state, retry next tick.
     }
@@ -133,7 +134,7 @@ export function startSessionWatch(opts = {}) {
     } catch (err) {
       if (err instanceof ApiRequestError && err.status === 401) {
         stop();
-        window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+        window.location.href = withBase("/portal/login?reason=session-expired");
       }
       // Otherwise the banner stays up; the user can retry.
     }
@@ -157,7 +158,7 @@ export async function requireSession({ onTermsRequired } = {}) {
   } catch (err) {
     if (err instanceof ApiRequestError) {
       if (err.status === 401) {
-        window.location.href = "/jaro-accounting-rebuild/portal/login?reason=session-expired";
+        window.location.href = withBase("/portal/login?reason=session-expired");
         throw err;
       }
       if (err.code === "terms_not_accepted" && onTermsRequired) {
@@ -165,7 +166,7 @@ export async function requireSession({ onTermsRequired } = {}) {
         throw err;
       }
       if (err.code === "totp_required") {
-        window.location.href = "/jaro-accounting-rebuild/portal/login?reason=2fa-required";
+        window.location.href = withBase("/portal/login?reason=2fa-required");
         throw err;
       }
     }
@@ -196,9 +197,9 @@ export async function initPortalChrome() {
     return;
   }
   if (!session) return;
-  if (session.role === "owner" && !nav.querySelector('a[href="/jaro-accounting-rebuild/portal/admin/"]')) {
+  if (session.role === "owner" && !nav.querySelector('a[href="/portal/admin/"]')) {
     const adminLink = document.createElement("a");
-    adminLink.href = "/jaro-accounting-rebuild/portal/admin/";
+    adminLink.href = "/portal/admin/";
     adminLink.textContent = "Admin";
     const signout = nav.querySelector(".link-button");
     nav.insertBefore(adminLink, signout);
