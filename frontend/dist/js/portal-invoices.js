@@ -3,6 +3,7 @@ import {
   portalApi, ApiRequestError, startSessionWatch, requireSession,
   initPortalChrome, esc, vancouverDateTime,
 } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const root = document.getElementById("invoices-root");
 const errorBox = document.getElementById("portal-error");
@@ -16,7 +17,7 @@ function showError(msg) {
 
 document.getElementById("portal-logout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 function money(cents) {
@@ -104,7 +105,7 @@ async function showDetail(id) {
     await loadInvoices();
   } catch (err) {
     if (err instanceof ApiRequestError && err.status === 401) {
-      window.location.href = "/portal/login?reason=session-expired";
+      window.location.href = withBase("/portal/login?reason=session-expired");
       return;
     }
     showError(err.message || "Couldn't load your invoices.");

@@ -65,6 +65,8 @@ images). Scripts are ES modules (deferred by default); no inline scripts.
 from __future__ import annotations
 
 import argparse
+
+from build_basepath import apply_base_path_to_css, apply_base_path_to_html
 import html
 import json
 import re
@@ -452,7 +454,31 @@ def render_page(meta: dict[str, str], body: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def build(out_dir: Path, *, clean: bool = True) -> list[Path]:
+def _nested_target(out_dir: Path, page_path: str) -> Path:
+    """Map a frontmatter path to a nested index.html target.
+
+    "/portal/login/" -> out/portal/login/index.html
+    "/"              -> out/index.html
+    "/404.html"      -> out/404.html (file paths pass through unchanged)
+    """
+    if page_path == "/":
+        return out_dir / "index.html"
+    if not page_path.endswith("/"):
+        return out_dir / page_path.lstrip("/")
+    return out_dir / page_path.strip("/") / "index.html"
+
+
+def build(out_dir: Path, *, clean: bool = True, base_path: str = "") -> list[Path]:
+    """Assemble the site.
+
+    ``base_path`` is "" for domain-root serving or "/subpath" when the
+    site lives under a subpath (e.g. GitHub Pages project sites). HTML
+    URLs and CSS url() references are rewritten with a real parser
+    (build_basepath) -- never regexes. JavaScript resolves the base path
+    at runtime via site-base.js, so JS is copied verbatim.
+    """
+    if base_path and (not base_path.startswith("/") or base_path.endswith("/")):
+        raise ValueError(f'base_path must be "" or "/subpath", got {base_path!r}')
     if clean and out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -468,10 +494,23 @@ def build(out_dir: Path, *, clean: bool = True) -> list[Path]:
         meta = {k: expand_site_tokens(v) for k, v in meta.items()}
         body = expand_site_tokens(body)
         rendered = render_page(meta, body)
-        target = out_dir / page_path.name
-        target.write_text(rendered, encoding="utf-8")
-        emitted.append(target)
+        rendered = apply_base_path_to_html(rendered, base_path)
+        if base_path:
+            # Subpath hosts (GitHub Pages) need pretty nested URLs:
+            # portal-login.html -> portal/login/index.html, using the
+            # frontmatter path as the source of truth.
+            nested = _nested_target(out_dir, meta["path"])
+            nested.parent.mkdir(parents=True, exist_ok=True)
+            nested.write_text(rendered, encoding="utf-8")
+            emitted.append(nested)
+        else:
+            target = out_dir / page_path.name
+            target.write_text(rendered, encoding="utf-8")
+            emitted.append(target)
         metas.append(meta)
+
+    if base_path:
+        (out_dir / ".nojekyll").write_text("", encoding="utf-8")
 
     # SEO: sitemap.xml (all sitemap-eligible pages) + robots.txt
     (out_dir / "sitemap.xml").write_text(render_sitemap(metas), encoding="utf-8")
@@ -490,11 +529,21 @@ def build(out_dir: Path, *, clean: bool = True) -> list[Path]:
         shutil.copytree(tree, dest)
         # JS is copied verbatim except for site/contact token expansion —
         # a few scripts embed the phone number in user-facing messages, and
-        # those must stay in sync with site-contact.json too.
+        # those must stay in sync with site-contact.json too. (Base-path
+        # handling for JS is runtime via site-base.js; /api/* is never
+        # rewritten because the stub intercepts it before network dispatch.)
         if tree is JS_DIR:
             for js_file in sorted(dest.rglob("*.js")):
                 js_file.write_text(
                     expand_site_tokens(js_file.read_text(encoding="utf-8")),
+                    encoding="utf-8",
+                )
+        # CSS url() references are rewritten with a real scanner when the
+        # site is served from a subpath.
+        if tree is CSS_DIR and base_path:
+            for css_file in sorted(dest.rglob("*.css")):
+                css_file.write_text(
+                    apply_base_path_to_css(css_file.read_text(encoding="utf-8"), base_path),
                     encoding="utf-8",
                 )
         emitted.extend(sorted(dest.rglob("*")))
@@ -507,12 +556,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", default="dist", help="output dir relative to frontend/")
     parser.add_argument("--clean", dest="clean", action="store_true", default=True)
     parser.add_argument("--no-clean", dest="clean", action="store_false")
+    parser.add_argument(
+        "--base-path", default="",
+        help='subpath the site is served from, e.g. "/jaro-accounting-rebuild" '
+             '(empty for domain-root serving)',
+    )
     args = parser.parse_args(argv)
 
     out_dir = (ROOT / args.out).resolve()
-    emitted = build(out_dir, clean=args.clean)
-    pages = sorted(p.name for p in out_dir.glob("*.html"))
-    print(f"build OK: {len(pages)} page(s) -> {out_dir} ({', '.join(pages)})")
+    emitted = build(out_dir, clean=args.clean, base_path=args.base_path)
+    if args.base_path:
+        pages = list(out_dir.rglob("index.html")) + [
+            p for p in out_dir.glob("*.html") if p.name != "index.html"
+        ]
+    else:
+        pages = list(out_dir.glob("*.html"))
+    print(f"build OK: {len(pages)} page(s) -> {out_dir} (base-path={args.base_path or '/'})")
     return 0
 
 

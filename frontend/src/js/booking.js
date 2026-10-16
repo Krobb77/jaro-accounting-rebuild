@@ -12,6 +12,7 @@ import {
   ApiRequestError, apiFetch, COUNTRIES, RELATIONSHIPS, STORAGE,
   allTimezones, formatSlot, parseISODate,
 } from "./booking-api.js";
+import { withBase } from "./site-base.js";
 
 const $ = (id) => document.getElementById(id);
 const widget = $("booking-widget");
@@ -670,7 +671,7 @@ async function confirmBooking() {
       headers: { "Idempotency-Key": state.idempotencyKey },
     });
     sessionStorage.setItem(STORAGE.result, JSON.stringify(body));
-    window.location.href = "/thank-you-for-your-booking/";
+    window.location.href = withBase("/thank-you-for-your-booking/");
   } catch (e) {
     if (e instanceof ApiRequestError && e.code === "slot_taken") {
       // The intent is still pending (confirm didn't consume it): keep

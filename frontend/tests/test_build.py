@@ -134,3 +134,35 @@ def test_dist_is_generated_not_handwritten():
     after = {p.relative_to(DIST): p.read_bytes() for p in DIST.rglob("*") if p.is_file()}
     assert before.keys() == after.keys()
     assert all(before[k] == after[k] for k in before)
+
+
+def test_all_js_modules_parse():
+    """Every shipped JS module must parse as a real ES module.
+
+    Regression: a scripted import insertion once placed an import inside a
+    multi-line import block. node --check (script mode) did not catch it;
+    browsers rejected the module and the portal journey broke.
+    """
+    run_build()
+    bad = []
+    for js in sorted((DIST / "js").rglob("*.js")):
+        r = subprocess.run(
+            ["node", "--input-type=module", "--check"],
+            input=js.read_bytes(), capture_output=True, timeout=30,
+        )
+        if r.returncode != 0:
+            bad.append(f"{js.name}: {r.stderr.decode()[:200]}")
+    assert not bad, "JS modules with syntax errors:\n" + "\n".join(bad)
+
+
+def test_withbase_imports_present():
+    """Every withBase() use must have its site-base.js import."""
+    run_build()
+    bad = []
+    for js in sorted((DIST / "js").rglob("*.js")):
+        if js.name in ("stub-backend.js", "site-base.js"):
+            continue
+        text = js.read_text(encoding="utf-8")
+        if "withBase(" in text and 'from "./site-base.js"' not in text:
+            bad.append(js.name)
+    assert not bad, f"withBase() used without import: {bad}"

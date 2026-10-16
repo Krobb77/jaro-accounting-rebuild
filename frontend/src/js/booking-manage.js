@@ -12,6 +12,7 @@
  */
 
 import { ApiRequestError, apiFetch, formatSlot } from "./booking-api.js";
+import { withBase } from "./site-base.js";
 
 const MANAGE_BASE = "/manage"; // apiFetch() prepends /api/v1/booking
 
@@ -249,7 +250,7 @@ async function submitReschedule() {
     });
     // New reference, new links — hand off to the thank-you page.
     sessionStorage.setItem("jaro.booking_result", JSON.stringify(body));
-    window.location.href = "/thank-you-for-your-booking/";
+    window.location.href = withBase("/thank-you-for-your-booking/");
   } catch (err) {
     if (err instanceof ApiRequestError && err.code === "slot_taken") {
       showError("That time was just taken — please pick another.");

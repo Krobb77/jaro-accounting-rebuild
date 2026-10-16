@@ -3,6 +3,7 @@ import {
   adminApi, portalApi, ApiRequestError,
   initPortalChrome, idempotencyKey, esc, vancouverDateTime,
 } from "./portal-api.js";
+import { withBase } from "./site-base.js";
 
 const errorBox = document.getElementById("admin-error");
 const clientsRoot = document.getElementById("clients-root");
@@ -21,7 +22,7 @@ function showError(msg) {
 
 document.getElementById("admin-logout").addEventListener("click", async () => {
   try { await portalApi.post("/logout"); } catch { /* already out */ }
-  window.location.href = "/portal/login/";
+  window.location.href = withBase("/portal/login/");
 });
 
 // --- at-a-glance (P20) ---------------------------------------------------------------
@@ -376,7 +377,7 @@ async function loadAudit() {
     await loadAudit();
   } catch (err) {
     if (err instanceof ApiRequestError && (err.status === 401 || err.status === 403)) {
-      window.location.href = "/portal/login/";
+      window.location.href = withBase("/portal/login/");
       return;
     }
     showError(err.message || "Couldn't load the console.");
